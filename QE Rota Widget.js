@@ -5,7 +5,7 @@
  * 
  * General Description: This widget fetches the rota information from a public Google Sheet and displays the date and the following: Consultant, Day SpR, Night SpR.
  * 
- * License: MIT License (if applicable)
+ * 
  */
 
 const url = "https://docs.google.com/spreadsheets/d/1vZYhWEk_30QCUfcT1TBXd_oT34nRc8YAUlytehfSfRk/export?format=csv&gid=1290877730";
