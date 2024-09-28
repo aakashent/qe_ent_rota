@@ -5,12 +5,6 @@
       "changes": "Improved data fetching and minor bug fixes.",
       "widgetUrl": "https://raw.githubusercontent.com/aakashent/qe_ent_rota/main/QE%20Rota%20Widget.js",
       "callScriptUrl": "https://raw.githubusercontent.com/aakashent/qe_ent_rota/main/QE%20Contact%20On%20Call.js"
-    },
-    {
-      "version": "1.0",
-      "changes": "Improved data fetching and minor bug fixes.",
-      "widgetUrl": "https://raw.githubusercontent.com/aakashent/qe_ent_rota/main/QE%20Rota%20Widget.js",
-      "callScriptUrl": "https://raw.githubusercontent.com/aakashent/qe_ent_rota/main/QE%20Contact%20On%20Call.js"
     }
   ]
 }
