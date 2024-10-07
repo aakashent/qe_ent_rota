@@ -95,7 +95,7 @@ Keychain.set("qerota_silentmode", "true");
 console.log("Silent mode set to 'true'.");
 
 // Import the main function from the module
-const main = importModule('QEInstaller3 1');
+const main = importModule('QERota_Installer');
 
   await main();  // Call the main update-checking function
 
