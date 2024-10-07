@@ -1,17 +1,26 @@
 /*
  * Title: QE Rota Information Widget
  * Version: 1.1
- * Changes: Improved data fetching and minor bug fixes.
- * 
- * General Description: This widget fetches the rota information from a public Google Sheet and displays the date and the following: Consultant, Day SpR, Night SpR.
- * 
- * 
+ * Changes: Added ability to see tomorrow using multiple widgets
  */
 
+// Set qerota_silentmode to true before importing the module
+Keychain.set("qerota_silentmode", "true");
+console.log("Silent mode set to 'true'.");
+
+// Import the main function from the module (if exists)
+let main;
+let updateCheckAvailable = true;
+try {
+  main = importModule('QERota_Installer');
+  console.log("Update-checking module imported successfully.");
+} catch (error) {
+  updateCheckAvailable = false;
+  console.log("Update-checking module not available. Skipping update check.");
+}
 
 // URL to the Google Sheet with rota information
 const url = "https://docs.google.com/spreadsheets/d/1vZYhWEk_30QCUfcT1TBXd_oT34nRc8YAUlytehfSfRk/export?format=csv&gid=1290877730";
-const openUrl = "https://tinyurl.com/QEENTMonthlyRota";
 
 // Fetch the data from the Google Sheet
 let req = new Request(url);
@@ -23,9 +32,22 @@ if (rows.length < 2) {
   throw new Error("No data found in the sheet.");
 }
 
+// Handle argument (today or tomorrow, with error handling for invalid values)
+let argument = (args.widgetParameter != null) ? parseInt(args.widgetParameter) : 0;
+if (isNaN(argument)) argument = 0;  // Default to 0 if argument is invalid
+
+let errorOccurred = false;
+if (argument > 1) {
+  argument = 0;  // Default to 0 if argument is greater than 1
+  errorOccurred = true;  // Trigger error message
+}
+
+// Adjust the row based on the argument (2 for today, 3 for tomorrow)
+let rowToAssess = 2 + argument;
+
 // Limit to first 3 columns (A-C), skipping the date column
 let headers = rows[0].slice(1, 4); // Headers from A1-C1 (first 3 titles)
-let data = rows[2].slice(1, 4);    // Data from A2-C2 (first 3 data points)
+let data = rows[rowToAssess].slice(1, 4);    // Data from A2 or A3 based on argument
 
 // Ensure data is available
 if (!headers || !data) {
@@ -44,7 +66,7 @@ if (Device.isUsingDarkAppearance()) {
 }
 
 // Add date as a header with larger font and no label
-let dateText = widget.addText(rows[2][0]);  // First cell is the date
+let dateText = widget.addText(rows[rowToAssess][0]);  // First cell is the date
 dateText.font = Font.boldSystemFont(16);
 dateText.centerAlignText(); // Center the date at the top
 widget.addSpacer(8); // Add some space after the date
@@ -88,29 +110,36 @@ for (let i = 0; i < headers.length; i++) {
 mainStack.addSpacer();
 
 // Perform silent update check and mark the widget if an update is available
+let markerStack = widget.addStack(); // Create a horizontal stack for the error and update marker
+markerStack.layoutHorizontally();
+
+// Add error message if the argument was invalid
+if (errorOccurred) {
+  let errorText = markerStack.addText("⚠️");
+  errorText.font = Font.mediumSystemFont(10);
+  errorText.textColor = Color.red();
+  errorText.leftAlignText();  // Align the text to the left
+}
+
+markerStack.addSpacer();  // Spacer between the error message and update marker
+
 async function checkForUpdatesAndMark() {
-  
-  // Set qerota_silentmode to true before importing the module
-Keychain.set("qerota_silentmode", "true");
-console.log("Silent mode set to 'true'.");
+  if (updateCheckAvailable) {
+    await main();  // Call the main update-checking function
 
-// Import the main function from the module
-const main = importModule('QERota_Installer');
+    // Retrieve the stored update status from the keychain
+    let updateStatus = Keychain.get("qerota_updateAvailable");
+    console.log(`Update check result: ${updateStatus}`);
 
-  await main();  // Call the main update-checking function
-
-  // Retrieve the stored update status from the keychain
-  let updateStatus = Keychain.get("qerota_updateAvailable");
-  console.log(`Update check result: ${updateStatus}`);
-
-  // If an update is available, mark it in the bottom right of the widget
-  if (updateStatus === "true") {
-    let markerStack = widget.addStack();
-    markerStack.addSpacer();  // Align marker to the bottom right
-    let updateText = markerStack.addText("⬇️ Update");
-    updateText.font = Font.mediumSystemFont(10);
-    updateText.textColor = Color.red();
-    updateText.rightAlignText();  // Align the text to the right
+    // If an update is available, mark it in the bottom right of the widget
+    if (updateStatus === "true") {
+      let updateText = markerStack.addText("⬇️");
+      updateText.font = Font.mediumSystemFont(10);
+      updateText.textColor = Color.red();
+      updateText.rightAlignText();  // Align the text to the right
+    }
+  } else {
+    console.log("Skipping update check due to missing module.");
   }
 }
 
@@ -127,5 +156,4 @@ if (config.runsInWidget) {
 } else {
   widget.presentSmall();
 }
-
 Script.complete();
