@@ -8,7 +8,7 @@
     },
     {
       "version": "1.1",
-      "changes": "Improved data fetching and minor bug fixes.",
+      "changes": "Added ability to see tomorrow using multiple widgets",
       "widgetUrl": "https://raw.githubusercontent.com/aakashent/qe_ent_rota/refs/heads/main/versions/widgetv1-1.js",
       "callScriptUrl": "https://raw.githubusercontent.com/aakashent/qe_ent_rota/refs/heads/main/versions/CallScriptv1-1.js"
     }
