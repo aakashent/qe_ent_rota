@@ -16,6 +16,8 @@
   let visibleMonthStart = null;
   let lastMonthQuery = '';
   let showAllSearchResults = false;
+  let nextDaysOpen = false;
+  let liveSnapshots = {};
 
   const $ = (id) => document.getElementById(id);
   const ui = {
@@ -23,6 +25,7 @@
     todayLabel: $('today-label'), currentDate: $('current-date-heading'), monthTitle: $('month-title'),
     nowList: $('now-rota-list'), monthList: $('month-rota-list'), monthCaption: $('month-caption'),
     monthGrid: $('month-date-grid'), selectedDateTitle: $('selected-date-title'),
+    previousDate: $('previous-date'), nextDate: $('next-date'), nextDaysToggle: $('next-days-toggle'), nextDaysList: $('next-days-list'),
     calendarMonthLabel: $('calendar-month-label'), previousMonth: $('previous-month'), nextMonth: $('next-month'),
     nowTab: $('now-tab'), monthTab: $('month-tab'), nowView: $('now-view'), monthView: $('month-view'),
     search: $('search-input'), clearSearch: $('clear-search'), searchResults: $('search-results'), refresh: $('refresh-button'),
@@ -401,7 +404,7 @@
       const selected = split.length ? split.filter((role) => new RegExp(`\\b${slot}\\b`, 'i').test(role.label)) : roles;
       return selected.map((role) => ({ label: role.label, value: coverAt(role.value, timeInRotaDay) })).filter((role) => safeText(role.value));
     };
-    return [...choose(row.consultants), ...choose(row.registrars)];
+    return [...choose(row.registrars), ...choose(row.consultants)];
   }
 
   function findNextHandover(trust, clock) {
@@ -409,6 +412,7 @@
     if (!current) return { current: [], next: null, ended: true };
     const roleKey = (label) => label.replace(/\s+(day|night)$/i, '');
     const baseline = new Map(current.map((role) => [roleKey(role.label), role]));
+    const handovers = new Map();
     const maxMinutes = 7 * 24 * 60;
     for (let offset = 1; offset <= maxMinutes; offset += 1) {
       const total = clock.minute + offset;
@@ -417,16 +421,16 @@
       const next = activeAssignments(trust, day, minute);
       if (!next) return { current, next: null, ended: true };
       const nextByLabel = new Map(next.map((role) => [roleKey(role.label), role]));
-      const labels = [...new Set([...baseline.keys(), ...nextByLabel.keys()])];
-      const changed = labels.filter((label) => baseline.get(label)?.value !== nextByLabel.get(label)?.value).map((label) => {
-        const role = nextByLabel.get(label) || baseline.get(label);
-        return { label: role.label.replace(/\s+(day|night)$/i, ''), value: nextByLabel.get(label)?.value || '' };
-      });
-      if (changed.length) {
-        return { current, next, changed, unchanged: labels.filter((label) => !changed.some((role) => role.label === label)), at: { day, minute }, ended: false };
+      for (const [label, role] of baseline) {
+        if (!handovers.has(label) && nextByLabel.get(label)?.value !== role.value) handovers.set(label, { day, minute });
       }
+      if (handovers.size === baseline.size) break;
     }
-    return { current, next: null, ended: false };
+    const at = [...handovers.values()].sort((a, b) => a.day.localeCompare(b.day) || a.minute - b.minute)[0] || null;
+    const next = at ? activeAssignments(trust, at.day, at.minute) : null;
+    const nextByLabel = new Map((next || []).map((role) => [roleKey(role.label), role]));
+    const changed = at ? [...handovers.keys()].filter((label) => handovers.get(label).day === at.day && handovers.get(label).minute === at.minute).map((label) => ({ label, value: nextByLabel.get(label)?.value || '' })) : [];
+    return { current, next, changed, unchanged: [...baseline.keys()].filter((label) => !changed.some((role) => role.label === label)), at, handovers: Object.fromEntries(handovers), ended: false };
   }
 
   function handoverWhen(at, today) {
@@ -442,7 +446,12 @@
     const dayStart = (Number(config.dayStartHour) || 8) * 60;
     const nightStart = (Number(config.nightStartHour) || 17) * 60;
     const shift = minute >= dayStart && minute < nightStart ? 'Day cover' : 'Night cover';
-    const roles = snapshot.current.map((role) => `<p class="snapshot-role"><strong>${escapeHtml(role.label)}:</strong> ${namesHtml(role.value)}</p>`).join('');
+    const roles = snapshot.current.map((role) => {
+      const key = role.label.replace(/\s+(day|night)$/i, '');
+      const until = snapshot.handovers?.[key];
+      const untilText = until ? `Until ${handoverWhen(until, today)}` : snapshot.ended ? 'Until the rota ends' : 'No change in the next 7 days';
+      return `<div class="snapshot-role"><p class="snapshot-role-label">${escapeHtml(role.label)}</p><p class="snapshot-role-name">${namesHtml(role.value)}</p><p class="snapshot-role-until">${escapeHtml(untilText)}</p></div>`;
+    }).join('');
     let handover = '';
     if (snapshot.changed?.length) {
       const changed = snapshot.changed.map((role) => `<span><strong>${escapeHtml(role.label)}:</strong> ${role.value ? namesHtml(role.value) : '<span class="role-empty">No entry</span>'}</span>`).join('');
@@ -476,8 +485,13 @@
         ? `${currentSnapshotHtml(trust, currentSnapshot, todayKey())}<div class="no-source"><span class="no-source-icon" aria-hidden="true">i</span><span>No rota entry was found for today.</span></div>`
         : `<div class="no-source"><span class="no-source-icon" aria-hidden="true">i</span><span>No rota entry was found for this date.</span></div>`;
     } else {
-      const roles = [...data.consultants, ...data.registrars];
-      body = `${currentSnapshot ? currentSnapshotHtml(trust, currentSnapshot, todayKey()) + '<p class="full-rota-label">Full rota today</p>' : ''}<div class="role-grid">${roles.map((role) => `<div class="role-card"><p class="role-label">${escapeHtml(role.label)}</p><p class="role-name">${namesHtml(role.value)}</p></div>`).join('') || '<div class="role-card"><p class="role-name role-empty">No on-call columns found.</p></div>'}</div>`;
+      const roles = [...data.registrars, ...data.consultants];
+      const dayStart = (Number(config.dayStartHour) || 8) * 60;
+      const nightStart = (Number(config.nightStartHour) || 17) * 60;
+      body = `${currentSnapshot ? currentSnapshotHtml(trust, currentSnapshot, todayKey()) + '<p class="full-rota-label">Full rota today</p>' : ''}<div class="role-grid">${roles.map((role) => {
+        const slot = /\bnight\b/i.test(role.label) ? `17:00–${String(dayStart / 60).padStart(2, '0')}:00` : /\bday\b/i.test(role.label) ? `${String(dayStart / 60).padStart(2, '0')}:00–${String(nightStart / 60).padStart(2, '0')}:00` : '';
+        return `<div class="role-card"><p class="role-label">${escapeHtml(role.label)}${slot ? `<span class="role-period">${slot}</span>` : ''}</p><p class="role-name">${namesHtml(role.value)}</p></div>`;
+      }).join('') || '<div class="role-card"><p class="role-name role-empty">No on-call columns found.</p></div>'}</div>`;
     }
     return `<article class="trust-card${collapsed ? ' is-collapsed' : ''}" data-trust="${trust}">
       <button class="trust-toggle" type="button" aria-expanded="${!collapsed}" aria-controls="${headingId}-body">
@@ -499,6 +513,7 @@
     const order = getTrustOrder();
     const initial = getInitialExpanded();
     const snapshots = Object.fromEntries(trustOrder.map((trust) => [trust, findNextHandover(trust, clock)]));
+    liveSnapshots = snapshots;
     const hasCurrent = Object.values(snapshots).some((snapshot) => snapshot.current.length);
     ui.nowList.innerHTML = `${errorHtml}${!hasAny && !hasCurrent && trustOrder.every((trust) => loadState[trust] === 'fresh' || loadState[trust] === 'cached') ? '<div class="empty-day"><strong>No rota entries found for today</strong>Check the coming-month view or refresh the published sheets.</div>' : ''}${order.map((trust) => cardHtml(trust, day, trust !== initial, false, snapshots[trust])).join('')}`;
     bindCardToggles(ui.nowList);
@@ -511,7 +526,6 @@
     const query = ui.search.value.trim().toLocaleLowerCase('en-GB');
     ui.clearSearch.hidden = !query;
     const order = getTrustOrder();
-    const initial = getInitialExpanded();
     const matchingDays = [];
     for (let day = start; day <= end; day = addDays(day, 1)) {
       if (!query || dayMatchesSearch(day, query, start)) matchingDays.push(day);
@@ -529,8 +543,49 @@
       : `Browse the next ${lookaheadMonths(start, end)} months · tap a date to see the rota`;
     renderMonthGrid(start, end, visibleMonthStart, query, matchingDays);
     ui.selectedDateTitle.textContent = dateLabel(selectedMonthDate);
-    ui.monthList.innerHTML = order.map((trust) => cardHtml(trust, selectedMonthDate, trust !== initial, true)).join('');
+    ui.previousDate.disabled = selectedMonthDate <= start;
+    ui.nextDate.disabled = selectedMonthDate >= end;
+    const selectedSnapshots = selectedMonthDate === start ? liveSnapshots : {};
+    ui.monthList.innerHTML = order.map((trust) => cardHtml(trust, selectedMonthDate, false, true, selectedSnapshots[trust] || null)).join('');
     bindCardToggles(ui.monthList);
+    renderNextDays(start, end);
+  }
+
+  function renderNextDays(start, end) {
+    const last = [end, addDays(start, 29)].sort()[0];
+    const dates = [];
+    for (let day = start; day <= last; day = addDays(day, 1)) dates.push(day);
+    ui.nextDaysToggle.setAttribute('aria-expanded', String(nextDaysOpen));
+    ui.nextDaysList.hidden = !nextDaysOpen;
+    ui.nextDaysToggle.classList.toggle('is-open', nextDaysOpen);
+    if (!nextDaysOpen) { ui.nextDaysList.innerHTML = ''; return; }
+    ui.nextDaysList.innerHTML = dates.map((day) => {
+      const weekend = [0, 6].includes(keyToDate(day).getUTCDay());
+      const siteSummaries = getTrustOrder().map((trust) => {
+        const row = findOnDate(trust, day);
+        if (!row) return `<span class="next-days-site"><strong>${trust}</strong><span class="role-empty">No entry</span></span>`;
+        const roles = [...row.registrars, ...row.consultants].filter((role) => safeText(role.value));
+        const summary = roles.map((role) => `${role.label.replace(/\s+(day|night)$/i, '')}: ${role.value}`).join(' · ');
+        return `<span class="next-days-site"><strong>${trust}</strong><span>${escapeHtml(summary || 'No names entered')}</span></span>`;
+      }).join('');
+      return `<button class="next-days-row${weekend ? ' is-weekend' : ''}${day === selectedMonthDate ? ' is-selected' : ''}" type="button" data-next-date="${day}"><span class="next-days-date">${escapeHtml(`${weekday(day)} ${shortDate(day)}`)}</span><span class="next-days-sites">${siteSummaries}</span></button>`;
+    }).join('');
+    ui.nextDaysList.querySelectorAll('[data-next-date]').forEach((button) => button.addEventListener('click', () => {
+      selectedMonthDate = button.dataset.nextDate;
+      visibleMonthStart = monthStart(selectedMonthDate);
+      renderMonth();
+      ui.selectedDateTitle.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
+  }
+
+  function navigateDate(amount) {
+    const start = todayKey();
+    const end = lookaheadEnd(start);
+    const target = addDays(selectedMonthDate || start, amount);
+    if (target < start || target > end) return;
+    selectedMonthDate = target;
+    visibleMonthStart = monthStart(target);
+    renderMonth();
   }
 
   function dayMatchesSearch(day, query, start) {
@@ -544,7 +599,7 @@
     }
     const text = `${dateLabel(day)} ${trustOrder.map((trust) => {
       const row = findOnDate(trust, day);
-      return [...(row?.consultants || []), ...(row?.registrars || [])].map((role) => `${role.label} ${role.value}`).join(' ');
+      return [...(row?.registrars || []), ...(row?.consultants || [])].map((role) => `${role.label} ${role.value}`).join(' ');
     }).join(' ')}`.toLocaleLowerCase('en-GB');
     return text.includes(query) || query.split(/\s+/).every((term) => text.includes(term));
   }
@@ -566,7 +621,7 @@
       const summaries = getTrustOrder().map((trust) => {
         const row = findOnDate(trust, day);
         if (!row) return '';
-        const matches = [...row.consultants, ...row.registrars].filter((role) => safeText(role.value));
+        const matches = [...row.registrars, ...row.consultants].filter((role) => safeText(role.value));
         if (!matches.length) return '';
         return `<span class="search-trust"><strong>${escapeHtml(trust)}:</strong> ${matches.map((role) => `${escapeHtml(role.label)} ${highlightMatch(role.value, query)}`).join(' · ')}</span>`;
       }).filter(Boolean).join(' ');
@@ -579,6 +634,7 @@
         selectedMonthDate = button.dataset.searchDate;
         visibleMonthStart = monthStart(selectedMonthDate);
         renderMonth();
+        ui.selectedDateTitle.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     });
     ui.searchResults.querySelector('#show-all-results')?.addEventListener('click', () => { showAllSearchResults = true; renderMonth(); });
@@ -613,7 +669,7 @@
       const dayNumber = keyToDate(day).getUTCDate();
       const summary = trustOrder.map((trust) => {
         const row = findOnDate(trust, day);
-        return [...(row?.consultants || []), ...(row?.registrars || [])].filter((role) => safeText(role.value)).map((role) => `${role.label}: ${role.value}`).join(', ');
+        return [...(row?.registrars || []), ...(row?.consultants || [])].filter((role) => safeText(role.value)).map((role) => `${role.label}: ${role.value}`).join(', ');
       }).filter(Boolean).join('. ');
       const accessible = `${dateLabel(day)}${summary ? `. ${summary}` : '. No rota entry found.'}`;
       buttons.push(`<button class="${classes.join(' ')}" type="button" data-date="${day}" aria-label="${escapeHtml(accessible)}" aria-pressed="${selected}"${available ? '' : ' disabled'}><span>${dayNumber}</span>${rowExists ? '<i class="calendar-dot" aria-hidden="true"></i>' : ''}</button>`);
@@ -624,6 +680,7 @@
         selectedMonthDate = button.dataset.date;
         visibleMonthStart = monthStart(selectedMonthDate);
         renderMonth();
+        ui.selectedDateTitle.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     });
   }
@@ -686,6 +743,9 @@
   ui.monthTab.addEventListener('click', () => setView('month'));
   ui.previousMonth.addEventListener('click', () => navigateMonth(-1));
   ui.nextMonth.addEventListener('click', () => navigateMonth(1));
+  ui.previousDate.addEventListener('click', () => navigateDate(-1));
+  ui.nextDate.addEventListener('click', () => navigateDate(1));
+  ui.nextDaysToggle.addEventListener('click', () => { nextDaysOpen = !nextDaysOpen; renderMonth(); });
   ui.refresh.addEventListener('click', refreshData);
   ui.footerRefresh.addEventListener('click', refreshData);
   ui.search.addEventListener('input', renderMonth);
