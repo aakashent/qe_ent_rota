@@ -78,8 +78,9 @@ button { color: inherit; }
 .brand-mark { width: 31px; height: 31px; border-radius: 10px; display: grid; place-items: center; background: var(--teal); color: #fff; font-size: 10px; letter-spacing: -.04em; }
 .topbar-actions { display: flex; gap: 14px; align-items: center; }
 .network-state { max-width: 48vw; overflow: hidden; color: inherit; opacity: .76; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.install-button, .theme-button { border: 1px solid rgba(127, 139, 133, .55); border-radius: 999px; padding: 7px 11px; background: transparent; color: var(--nav-fg); font-size: 12px; font-weight: 600; cursor: pointer; }
-.install-button:hover, .theme-button:hover { background: var(--hover); }
+.install-button, .theme-button { border: 1px solid rgba(240, 242, 238, .52); border-radius: 999px; padding: 7px 11px; background: transparent; color: #f0f2ee; font-size: 12px; font-weight: 600; cursor: pointer; }
+.install-button:hover, .theme-button:hover { background: rgba(240, 242, 238, .12); }
+.install-button:focus-visible, .theme-button:focus-visible, .view-tab:focus-visible, .site-filter button:focus-visible { outline: 2px solid var(--teal-dark); outline-offset: 2px; }
 
 main { width: min(100% - 40px, 920px); margin: 0 auto; }
 .intro { display: flex; align-items: end; justify-content: space-between; gap: 20px; padding: 43px 0 27px; }
@@ -114,6 +115,15 @@ h2 { margin-bottom: 0; color: var(--navy); font-size: 23px; line-height: 1.2; }
 .trust-summary { display: block; max-width: 100%; margin-top: 3px; overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .trust-chevron { color: var(--muted); font-size: 19px; transition: transform .18s ease; }
 .trust-card.is-collapsed .trust-chevron { transform: rotate(-90deg); }
+.trust-card.is-collapsed .trust-toggle { gap: 10px; padding-top: 12px; padding-bottom: 12px; }
+.trust-header-primary { min-width: 0; flex: 1; display: flex; align-items: center; gap: 13px; }
+.trust-collapsed-summary { display: none; }
+.trust-card.is-collapsed .trust-header-primary { display: none; }
+.trust-card.is-collapsed .trust-collapsed-summary { min-width: 0; flex: 1; display: grid; grid-template-columns: 35px minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: center; }
+.collapsed-site { color: var(--ink-soft); font-size: 11px; font-weight: 800; }
+.collapsed-role { min-width: 0; display: grid; gap: 2px; }
+.collapsed-role-label { color: var(--muted); font-size: 8px; font-weight: 800; letter-spacing: .045em; line-height: 1; text-transform: uppercase; }
+.collapsed-role-name { display: block; overflow-wrap: anywhere; color: var(--ink); font-family: var(--serif); font-size: 14px; font-weight: 600; line-height: 1.12; }
 .trust-body { border-top: 1px solid var(--line); padding: 17px 19px 19px; }
 .trust-card.is-collapsed .trust-body { display: none; }
 .role-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -141,9 +151,26 @@ h2 { margin-bottom: 0; color: var(--navy); font-size: 23px; line-height: 1.2; }
 .search-box input::placeholder { color: #91a1ad; }
 .clear-search { width: 23px; height: 23px; border: 0; border-radius: 50%; background: #eff3f5; color: var(--ink-soft); font-size: 17px; line-height: 1; cursor: pointer; }
 .month-caption { margin: 0 0 10px; color: var(--muted); font-size: 11px; }
-.month-calendar { border: 1px solid var(--line); border-radius: 17px; padding: 12px; background: var(--paper); box-shadow: var(--shadow); }
+.month-calendar { position: relative; border: 1px solid var(--line); border-radius: 17px; padding: 12px; background: var(--paper); box-shadow: var(--shadow); }
 .calendar-month-nav { display: flex; align-items: center; justify-content: space-between; margin: 0 1px 8px; }
-.calendar-month-label { margin: 0; color: var(--navy); font-family: Manrope, sans-serif; font-size: 14px; font-weight: 800; letter-spacing: -.02em; }
+.calendar-month-label { display: inline-flex; align-items: center; gap: 4px; border: 0; border-radius: 8px; padding: 5px 8px; background: transparent; color: var(--navy); font-family: Manrope, sans-serif; font-size: 14px; font-weight: 800; letter-spacing: -.02em; cursor: pointer; }
+.calendar-month-label:hover, .calendar-month-label[aria-expanded="true"] { background: var(--teal-wash); }
+.calendar-month-chevron { color: var(--muted); font-size: 14px; transition: transform .15s ease; }
+.calendar-month-label[aria-expanded="true"] .calendar-month-chevron { transform: rotate(180deg); }
+.calendar-month-picker { position: absolute; z-index: 5; top: 54px; left: 50%; width: min(320px, calc(100% - 18px)); transform: translateX(-50%); border: 1px solid var(--line); border-radius: 18px; padding: 14px; background: var(--paper); box-shadow: 0 14px 38px rgba(17, 26, 30, .2); color: var(--ink); }
+.calendar-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; color: var(--ink-soft); font-size: 11px; font-weight: 700; }
+.calendar-year-select { min-width: 92px; border: 1px solid var(--line); border-radius: 9px; padding: 7px 25px 7px 9px; background: var(--surface-soft); color: var(--ink); font: 700 13px var(--sans); }
+.calendar-month-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.calendar-month-option { min-height: 37px; border: 1px solid transparent; border-radius: 10px; background: var(--surface-soft); color: var(--ink-soft); font-size: 12px; font-weight: 650; cursor: pointer; }
+.calendar-month-option:hover:not(:disabled) { border-color: var(--teal); background: var(--teal-wash); color: var(--ink); }
+.calendar-month-option:disabled { opacity: .35; cursor: default; }
+.calendar-month-option.is-current { box-shadow: inset 0 0 0 1px var(--teal-dark); color: var(--teal-dark); }
+.calendar-month-option.is-selected { background: var(--teal-dark); color: var(--paper); }
+.calendar-month-option.is-current.is-selected { box-shadow: inset 0 0 0 1px var(--teal-dark); }
+.calendar-picker-actions { display: flex; justify-content: space-between; margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.calendar-picker-actions button { border: 0; border-radius: 8px; padding: 7px 10px; background: transparent; color: var(--teal-dark); font-size: 12px; font-weight: 700; cursor: pointer; }
+.calendar-picker-actions button:hover { background: var(--teal-wash); }
+.calendar-picker-actions .calendar-picker-close { color: var(--ink-soft); }
 .calendar-nav-button { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink-soft); font-size: 23px; line-height: 1; cursor: pointer; }
 .calendar-nav-button:hover:not(:disabled) { border-color: var(--teal); background: var(--teal-wash); color: var(--teal-dark); }
 .calendar-nav-button:disabled { opacity: .35; cursor: default; }
@@ -217,11 +244,11 @@ mark { border-radius: 3px; padding: 0 2px; background: #edf3ee; color: var(--ink
 .next-days-columns { padding: 4px 8px 2px; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .045em; text-transform: uppercase; }
 .next-days-site-row { align-items: start; border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent); padding: 5px 8px; font-size: 11px; line-height: 1.25; }
 .next-days-site { color: var(--ink-soft); font-size: 10px; font-weight: 800; }
-.next-days-consultant, .next-days-registrar { min-width: 0; overflow-wrap: anywhere; }
+.next-days-consultant, .next-days-registrar { min-width: 0; overflow-wrap: anywhere; font-size: 14px; line-height: 1.15; }
 .next-days-single-content { min-width: 0; display: block; padding: 0 8px 5px; }
 .single-columns, .next-days-values { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); }
 .single-columns { padding: 5px 0 2px; }
-.next-days-values { align-items: start; font-size: 11px; line-height: 1.25; }
+.next-days-values { align-items: start; font-size: 14px; line-height: 1.15; }
 .next-days-date-side { display: flex; flex-direction: column; justify-content: center; gap: 2px; border-right: 1px solid var(--line); padding: 6px 6px; color: var(--ink-soft); font-family: var(--mono); font-size: 10px; font-weight: 700; line-height: 1.2; }
 .single-view { display: grid; grid-template-columns: 63px minmax(0, 1fr); }
 .consultant-period { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 4px; min-width: 0; }
@@ -282,7 +309,10 @@ mark { border-radius: 3px; padding: 0 2px; background: #edf3ee; color: var(--ink
   .single-view { grid-template-columns: 58px minmax(0, 1fr); }
   .next-days-single-content { padding-right: 6px; padding-left: 7px; }
   .next-days-date-side { padding-right: 4px; padding-left: 5px; font-size: 9px; }
-  .next-days-values { gap: 5px; font-size: 10px; }
+  .next-days-values { gap: 5px; font-size: 14px; }
+  .trust-card.is-collapsed .trust-collapsed-summary { grid-template-columns: 31px minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
+  .collapsed-role-label { font-size: 7px; }
+  .collapsed-role-name { font-size: 13px; }
   .month-calendar { padding: 9px; }
   .calendar-weekdays, .calendar-grid { gap: 4px; }
   .calendar-day { border-radius: 9px; font-size: 12px; }
