@@ -120,6 +120,8 @@ h2 { margin-bottom: 0; color: var(--navy); font-size: 23px; line-height: 1.2; }
 .role-card { min-width: 0; border: 1px solid var(--line); border-radius: 13px; padding: 12px 13px; background: var(--surface-soft); }
 .role-label { margin-bottom: 7px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .role-period { display: block; margin-top: 3px; color: var(--muted); font-family: var(--mono); font-size: 10px; font-weight: 400; letter-spacing: 0; }
+.role-assignment + .role-assignment { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
+.role-assignment-label { margin: 0 0 5px; color: var(--ink-soft); font-size: 11px; }
 .role-name { margin-bottom: 0; color: var(--ink); font-family: var(--serif); font-size: 18px; font-weight: 400; line-height: 1.25; overflow-wrap: anywhere; }
 .role-empty { color: var(--muted); font-size: 13px; font-weight: 500; }
 .handover-note { display: block; margin-top: 5px; color: var(--ink-soft); font-size: 11px; font-weight: 500; }
@@ -175,10 +177,13 @@ mark { border-radius: 3px; padding: 0 2px; background: #edf3ee; color: var(--ink
 .snapshot-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; color: var(--teal-dark); font-size: 12px; font-weight: 700; }
 .snapshot-heading time { color: var(--muted); font-family: var(--mono); font-size: 11px; font-weight: 400; }
 .snapshot-roles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.snapshot-role { min-width: 0; margin: 0; border-radius: 10px; padding: 10px; background: var(--paper); }
-.snapshot-role-label { margin: 0 0 3px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.snapshot-role-group { min-width: 0; border-radius: 10px; padding: 10px; background: var(--paper); }
+.snapshot-group-title { margin: 0 0 8px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.snapshot-assignment + .snapshot-assignment { margin-top: 9px; border-top: 1px solid var(--line); padding-top: 8px; }
+.snapshot-assignment-label { margin: 0 0 3px; color: var(--ink-soft); font-size: 10px; }
 .snapshot-role-name { margin: 0; color: var(--ink); font-family: var(--serif); font-size: 18px; line-height: 1.2; overflow-wrap: anywhere; }
 .snapshot-role-until { margin: 5px 0 0; color: var(--teal-dark); font-size: 11px; }
+.snapshot-empty { margin: 0; }
 .handover-card { display: grid; gap: 3px; margin-top: 11px; border-top: 1px solid var(--line); padding-top: 9px; color: var(--ink-soft); font-size: 11px; }
 .handover-card strong { color: var(--ink); font-weight: 700; }
 .full-rota-label { margin: 0 0 9px; color: var(--muted); font-family: var(--mono); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
@@ -222,7 +227,7 @@ mark { border-radius: 3px; padding: 0 2px; background: #edf3ee; color: var(--ink
   .trust-body { padding: 13px 14px 15px; }
   .role-grid { gap: 8px; }
   .snapshot-roles { gap: 7px; }
-  .snapshot-role { padding: 8px; }
+  .snapshot-role-group { padding: 8px; }
   .snapshot-role-name { font-size: 15px; }
   .role-card { padding: 10px; }
   .role-name { font-size: 14px; }
