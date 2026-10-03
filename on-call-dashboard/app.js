@@ -410,6 +410,10 @@
     const part = Object.fromEntries(parts.map((x) => [x.type, x.value]));
     return { day: `${part.year}-${part.month}-${part.day}`, minute: Number(part.hour) * 60 + Number(part.minute) };
   }
+  function rotaDay(clock) {
+    const dayStart = (Number(config.dayStartHour) || 8) * 60;
+    return clock.minute < dayStart ? addDays(clock.day, -1) : clock.day;
+  }
   function findOnDate(trust, day) {
     if (!dateIndexes[trust]) dateIndexes[trust] = new Map(records[trust].map((row) => [row.date, row]));
     return dateIndexes[trust].get(day) || null;
@@ -614,13 +618,13 @@
       body = `<div class="no-source"><span class="no-source-icon" aria-hidden="true">!</span><span>${escapeHtml(messages[trust] || 'Rota unavailable.')}</span></div>`;
     } else if (!data) {
       body = currentSnapshot?.current?.length
-        ? `${currentSnapshotHtml(trust, currentSnapshot, todayKey())}<div class="no-source"><span class="no-source-icon" aria-hidden="true">i</span><span>No rota entry was found for today.</span></div>`
+        ? `${currentSnapshotHtml(trust, currentSnapshot, todayKey())}<div class="no-source"><span class="no-source-icon" aria-hidden="true">i</span><span>No rota entry was found for this rota day.</span></div>`
         : `<div class="no-source"><span class="no-source-icon" aria-hidden="true">i</span><span>No rota entry was found for this date.</span></div>`;
     } else {
       const dayStart = (Number(config.dayStartHour) || 8) * 60;
       const nightStart = (Number(config.nightStartHour) || 17) * 60;
       const groups = [{ title: 'Consultants', roles: data.consultants }, { title: 'Registrars', roles: data.registrars }];
-      body = `${currentSnapshot ? currentSnapshotHtml(trust, currentSnapshot, todayKey()) + '<p class="full-rota-label">Full rota today</p>' : ''}<div class="role-grid">${groups.map((group) => `<div class="role-card"><p class="role-label">${group.title}</p>${group.roles.length ? group.roles.map((role) => {
+      body = `${currentSnapshot ? currentSnapshotHtml(trust, currentSnapshot, todayKey()) + '<p class="full-rota-label">Full rota for this rota day</p>' : ''}<div class="role-grid">${groups.map((group) => `<div class="role-card"><p class="role-label">${group.title}</p>${group.roles.length ? group.roles.map((role) => {
         const slot = /\bnight\b/i.test(role.label) ? `${String(nightStart / 60).padStart(2, '0')}:00–${String(dayStart / 60).padStart(2, '0')}:00` : /\bday\b/i.test(role.label) ? `${String(dayStart / 60).padStart(2, '0')}:00–${String(nightStart / 60).padStart(2, '0')}:00` : '';
         const detail = role.label.replace(/\b(registrars?|spr|reg|st[1-8]|consultant)\b/ig, '').trim() || 'Cover';
         return `<div class="role-assignment"><p class="role-assignment-label">${escapeHtml(detail)}${slot ? `<span class="role-period">${slot}</span>` : ''}</p><p class="role-name">${namesHtml(role.value)}</p></div>`;
@@ -639,8 +643,10 @@
 
   function renderNow() {
     const clock = londonClock();
-    const day = clock.day;
+    const day = rotaDay(clock);
     ui.currentDate.textContent = dateLabel(day);
+    const dayStart = (Number(config.dayStartHour) || 8) * 60;
+    ui.todayLabel.textContent = `Rota day · until ${displayTime(dayStart)} on ${dateLabel(addDays(day, 1))}`;
     const errors = trustOrder.filter((trust) => loadState[trust] === 'error').map((trust) => `${trust}: ${messages[trust]}`);
     const fallbackNotes = trustOrder.filter((trust) => loadState[trust] === 'fallback').map((trust) => messages[trust]);
     const errorHtml = `${errors.length ? `<div class="error-banner">${errors.map(escapeHtml).join('<br>')}</div>` : ''}${fallbackNotes.length ? `<div class="fallback-banner">${fallbackNotes.map(escapeHtml).join('<br>')}</div>` : ''}`;
@@ -649,7 +655,7 @@
     const snapshots = Object.fromEntries(trustOrder.map((trust) => [trust, findNextHandover(trust, clock)]));
     liveSnapshots = snapshots;
     const hasCurrent = Object.values(snapshots).some((snapshot) => snapshot.current.length);
-    ui.nowList.innerHTML = `${errorHtml}${!hasAny && !hasCurrent && trustOrder.every((trust) => ['fresh', 'cached', 'fallback'].includes(loadState[trust])) ? '<div class="empty-day"><strong>No rota entries found for today</strong>Check the coming-month view or refresh the published sheets.</div>' : ''}${order.map((trust) => cardHtml(trust, day, !isInitiallyOpen(trust), false, snapshots[trust])).join('')}`;
+    ui.nowList.innerHTML = `${errorHtml}${!hasAny && !hasCurrent && trustOrder.every((trust) => ['fresh', 'cached', 'fallback'].includes(loadState[trust])) ? '<div class="empty-day"><strong>No rota entries found for this rota day</strong>Check the coming-month view or refresh the published sheets.</div>' : ''}${order.map((trust) => cardHtml(trust, day, !isInitiallyOpen(trust), false, snapshots[trust])).join('')}`;
     bindCardToggles(ui.nowList);
   }
 
@@ -1072,8 +1078,6 @@
   }
 
   function render() {
-    const now = new Date();
-    ui.todayLabel.textContent = dateFmt.format(now);
     renderNow();
     renderMonth();
     updateFreshness();
