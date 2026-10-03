@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#102a43">
+    <meta name="description" content="Current and upcoming hospital on-call rotas.">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="On call">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="./assets/icon.svg">
+    <link rel="stylesheet" href="./styles.css">
+    <script src="https://www.gstatic.com/charts/loader.js"></script>
+    <title>On call</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="./" aria-label="On call home">
+          <span class="brand-mark" aria-hidden="true">OC</span>
+          <span>On call</span>
+        </a>
+        <div class="topbar-actions">
+          <span id="network-state" class="network-state" aria-live="polite">Loading rota…</span>
+          <button id="install-button" class="install-button" type="button" hidden>Install</button>
+        </div>
+      </header>
+
+      <main>
+        <section class="intro" aria-labelledby="page-title">
+          <div>
+            <p class="eyebrow">HOSPITAL ROTAS</p>
+            <h1 id="page-title">On-call cover</h1>
+            <p id="today-label" class="today-label"></p>
+          </div>
+          <div class="updated-pill" aria-live="polite">
+            <span class="live-dot" aria-hidden="true"></span>
+            <span id="updated-label">Checking for updates</span>
+          </div>
+        </section>
+
+        <nav class="view-switch" role="tablist" aria-label="Rota view">
+          <button id="now-tab" class="view-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="now-view">Now</button>
+          <button id="month-tab" class="view-tab" type="button" role="tab" aria-selected="false" aria-controls="month-view">Coming month</button>
+        </nav>
+
+        <section id="now-view" class="view-panel" role="tabpanel" aria-labelledby="now-tab">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">ON CALL TODAY</p>
+              <h2 id="current-date-heading">Today</h2>
+            </div>
+            <button id="refresh-button" class="refresh-button" type="button" aria-label="Refresh rota data">
+              <span aria-hidden="true">↻</span><span>Refresh</span>
+            </button>
+          </div>
+          <div id="now-rota-list" class="rota-list" aria-live="polite"></div>
+        </section>
+
+        <section id="month-view" class="view-panel" role="tabpanel" aria-labelledby="month-tab" hidden>
+          <div class="section-heading month-heading">
+            <div>
+              <p class="eyebrow">PLAN AHEAD</p>
+              <h2 id="month-title">Coming month</h2>
+            </div>
+            <label class="search-box">
+              <span class="sr-only">Search dates or names</span>
+              <span class="search-icon" aria-hidden="true">⌕</span>
+              <input id="search-input" type="search" placeholder="Search names or dates" autocomplete="off">
+              <button id="clear-search" class="clear-search" type="button" aria-label="Clear search" hidden>×</button>
+            </label>
+          </div>
+          <p id="month-caption" class="month-caption">Tap a date to see who is on call</p>
+          <div class="month-calendar" aria-label="Dates in the coming months">
+            <div class="calendar-month-nav">
+              <button id="previous-month" class="calendar-nav-button" type="button" aria-label="Previous month">‹</button>
+              <h3 id="calendar-month-label" class="calendar-month-label"></h3>
+              <button id="next-month" class="calendar-nav-button" type="button" aria-label="Next month">›</button>
+            </div>
+            <div class="calendar-weekdays" aria-hidden="true"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+            <div id="month-date-grid" class="calendar-grid" role="group" aria-label="Select a date"></div>
+          </div>
+          <section class="selected-day" aria-live="polite">
+            <h3 id="selected-date-title" class="selected-date-title"></h3>
+            <div id="month-rota-list" class="month-rota-list"></div>
+          </section>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span>Times shown in UK local time</span>
+        <button id="footer-refresh" class="text-button" type="button">Refresh rota</button>
+      </footer>
+    </div>
+
+    <script src="./config.js"></script>
+    <script src="./app.js" defer></script>
+  </body>
+</html>
