@@ -489,7 +489,7 @@
       const dayStart = (Number(config.dayStartHour) || 8) * 60;
       const nightStart = (Number(config.nightStartHour) || 17) * 60;
       body = `${currentSnapshot ? currentSnapshotHtml(trust, currentSnapshot, todayKey()) + '<p class="full-rota-label">Full rota today</p>' : ''}<div class="role-grid">${roles.map((role) => {
-        const slot = /\bnight\b/i.test(role.label) ? `17:00–${String(dayStart / 60).padStart(2, '0')}:00` : /\bday\b/i.test(role.label) ? `${String(dayStart / 60).padStart(2, '0')}:00–${String(nightStart / 60).padStart(2, '0')}:00` : '';
+        const slot = /\bnight\b/i.test(role.label) ? `${String(nightStart / 60).padStart(2, '0')}:00–${String(dayStart / 60).padStart(2, '0')}:00` : /\bday\b/i.test(role.label) ? `${String(dayStart / 60).padStart(2, '0')}:00–${String(nightStart / 60).padStart(2, '0')}:00` : '';
         return `<div class="role-card"><p class="role-label">${escapeHtml(role.label)}${slot ? `<span class="role-period">${slot}</span>` : ''}</p><p class="role-name">${namesHtml(role.value)}</p></div>`;
       }).join('') || '<div class="role-card"><p class="role-name role-empty">No on-call columns found.</p></div>'}</div>`;
     }
@@ -565,8 +565,8 @@
         const row = findOnDate(trust, day);
         if (!row) return `<span class="next-days-site"><strong>${trust}</strong><span class="role-empty">No entry</span></span>`;
         const roles = [...row.registrars, ...row.consultants].filter((role) => safeText(role.value));
-        const summary = roles.map((role) => `${role.label.replace(/\s+(day|night)$/i, '')}: ${role.value}`).join(' · ');
-        return `<span class="next-days-site"><strong>${trust}</strong><span>${escapeHtml(summary || 'No names entered')}</span></span>`;
+        const summary = roles.map((role) => `<span><strong>${escapeHtml(role.label.replace(/\s+(day|night)$/i, ''))}:</strong> ${namesHtml(role.value)}</span>`).join(' · ');
+        return `<span class="next-days-site"><strong>${trust}</strong><span>${summary || '<span class="role-empty">No names entered</span>'}</span></span>`;
       }).join('');
       return `<button class="next-days-row${weekend ? ' is-weekend' : ''}${day === selectedMonthDate ? ' is-selected' : ''}" type="button" data-next-date="${day}"><span class="next-days-date">${escapeHtml(`${weekday(day)} ${shortDate(day)}`)}</span><span class="next-days-sites">${siteSummaries}</span></button>`;
     }).join('');
