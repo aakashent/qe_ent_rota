@@ -4,7 +4,8 @@ A mobile-first, static PWA for the QE and HGS on-call rotas. It is designed for 
 
 ## Included
 
-- **Now** and **Coming month** views. The coming-month view uses a compact calendar with month navigation across the next three months; choosing a date shows that day's QE and HGS rotas. Search jumps to the first matching date or name.
+- **Now** shows the active day/night cover and the next handover, including custom times written in rota cells. **Coming month** uses a compact calendar; search finds and highlights matching names or dates across the rota, with weekends shaded differently.
+- Auto, light and dark themes, with the visitor's choice saved on their device.
 - QE and HGS rota panels. HGS is expanded by default; `?first=QE` puts QE first and expanded, with HGS collapsed. With no parameter (or any value other than QE), HGS is first and expanded.
 - Automatic column detection for a date, one consultant column or consultant day/night columns, and registrar day/night columns.
 - Five-minute refresh while online; the last fetched rota is saved locally and labelled if shown offline.
@@ -27,7 +28,9 @@ HGS: {
 
 The spreadsheet must be viewable by anyone with the link and the tab must be accessible to the query. `spreadsheetId` is the part of the Google Sheets URL between `/d/` and `/edit`. An optional `csvUrl` can be used for another CSV endpoint that allows cross-origin browser reads.
 
-QE is preconfigured with the spreadsheet link supplied for this project. HGS is intentionally left blank until its sheet is available. The current QE tab headers (`Date`, `SpR Day`, `SpR Night`, `Consultant`) are supported. The HGS source may use `Consultant Day` and `Consultant Night`; those are detected automatically.
+QE and HGS are configured as tabs in the spreadsheet supplied for this project. The current QE tab headers (`Date`, `SpR Day`, `SpR Night`, `Consultant`) are supported. HGS may use separate `Consultant Day` and `Consultant Night` columns; these are detected automatically. If HGS is moved to another spreadsheet, change only its `spreadsheetId` in `config.js`.
+
+Cell values may specify timed changes, for example `Name / after 1pm Other Name` or `Name until 13:00 / from 14:00 Other Name`. The live cover view follows those handovers. Standard day/night switching is set to 08:00 and 17:00 in `config.js`.
 
 ## Run locally
 
