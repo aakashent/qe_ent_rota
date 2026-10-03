@@ -12,12 +12,14 @@
   let installPrompt = null;
   let requestNumber = 0;
   let gvizReadyPromise = null;
+  let sourceGridPromises = new Map();
   let selectedMonthDate = null;
   let visibleMonthStart = null;
   let lastMonthQuery = '';
   let showAllSearchResults = false;
   let nextDaysOpen = false;
-  let dateSectionOpen = true;
+  let nextDaysSiteFilter = null;
+  let dateSectionOpen = false;
   let liveSnapshots = {};
 
   const $ = (id) => document.getElementById(id);
@@ -26,12 +28,12 @@
     todayLabel: $('today-label'), currentDate: $('current-date-heading'), monthTitle: $('month-title'),
     nowList: $('now-rota-list'), monthList: $('month-rota-list'), monthCaption: $('month-caption'),
     monthGrid: $('month-date-grid'), selectedDateTitle: $('selected-date-title'), dateSectionToggle: $('date-selection-toggle'), dateSectionContent: $('date-selection-content'),
-    previousDate: $('previous-date'), nextDate: $('next-date'), nextDaysToggle: $('next-days-toggle'), nextDaysList: $('next-days-list'),
+    previousDate: $('previous-date'), nextDate: $('next-date'), nextDaysToggle: $('next-days-toggle'), nextDaysFilter: $('next-days-filter'), nextDaysList: $('next-days-list'),
     calendarMonthLabel: $('calendar-month-label'), previousMonth: $('previous-month'), nextMonth: $('next-month'),
     nowTab: $('now-tab'), monthTab: $('month-tab'), nowView: $('now-view'), monthView: $('month-view'),
     search: $('search-input'), clearSearch: $('clear-search'), searchResults: $('search-results'), refresh: $('refresh-button'),
     footerRefresh: $('footer-refresh'), install: $('install-button'), theme: $('theme-button'), settings: $('settings-button'), settingsDialog: $('settings-dialog'),
-    closeSettings: $('close-settings'), cancelSettings: $('cancel-settings'), saveSettings: $('save-settings'), firstSiteSetting: $('first-site-setting'),
+    closeSettings: $('close-settings'), cancelSettings: $('cancel-settings'), saveSettings: $('save-settings'), firstSiteSetting: $('first-site-setting'), defaultSiteFilterSetting: $('default-site-filter-setting'),
     qeOpenSetting: $('qe-open-setting'), hgsOpenSetting: $('hgs-open-setting')
   };
 
@@ -72,8 +74,13 @@
 
   function lookaheadEnd(start = todayKey()) {
     const configuredEnd = addDays(start, Math.max(1, Number(config.dateLookaheadDays) || 90));
-    const latest = trustOrder.flatMap((trust) => records[trust].map((row) => row.date)).filter((day) => day >= start).sort().pop();
-    return latest && latest > configuredEnd ? latest : configuredEnd;
+    const siteEnds = trustOrder.map((trust) => records[trust]
+      .filter((row) => row.date >= start
+        && (row._hasConsultants ?? (row.consultants.length > 0))
+        && (row._hasRegistrars ?? (row.registrars.length > 0)))
+      .map((row) => row.date).sort().pop()).filter(Boolean).sort();
+    const latestCommon = siteEnds.length === trustOrder.length ? siteEnds[0] : null;
+    return latestCommon && latestCommon > configuredEnd ? latestCommon : configuredEnd;
   }
 
   function lookaheadMonths(start, end) {
@@ -173,11 +180,88 @@
 
   function parseRows(csv) { return parseMatrix(parseCSV(csv)); }
 
+  function parseLongSource(matrix, source) {
+    const header = (matrix[0] || []).map(normaliseHeader);
+    const has = (index, text) => (header[index] || '').includes(text);
+    const validHeaders = source.kind === 'qe-registrars'
+      ? has(12, 'day on call') && has(13, 'night on call')
+      : source.kind === 'hgs-registrars'
+        ? has(2, 'day spr') && has(3, 'night spr')
+        : source.kind === 'qe-consultants'
+          ? has(2, 'qe first on call') && has(4, 'bhh daytime') && has(5, 'bhh overnight')
+          : source.kind === 'hgs-consultants'
+            ? has(2, 'qe first on call') && has(4, 'bhh daytime') && has(5, 'bhh overnight')
+            : false;
+    if (!validHeaders) throw new Error(`Unexpected columns in ${source.sheetName}.`);
+    const cell = (row, index) => String(row[index] ?? '').trim();
+    return matrix.map((row) => {
+      const date = dateKey(cell(row, 0));
+      if (!date) return null;
+      if (source.kind === 'qe-registrars') return {
+        date, consultants: [],
+        registrars: [
+          { label: 'Registrar day', value: cell(row, 12) },
+          { label: 'Registrar night', value: cell(row, 13) }
+        ]
+      };
+      if (source.kind === 'hgs-registrars') return {
+        date, consultants: [],
+        registrars: [
+          { label: 'Registrar day', value: cell(row, 2) },
+          { label: 'Registrar night', value: cell(row, 3) }
+        ]
+      };
+      if (source.kind === 'qe-consultants') return {
+        date, consultants: [{ label: 'Consultant', value: cell(row, 2) }], registrars: []
+      };
+      if (source.kind === 'hgs-consultants') return {
+        date, consultants: [
+          { label: 'Consultant day', value: cell(row, 4) },
+          { label: 'Consultant night', value: cell(row, 5) }
+        ], registrars: []
+      };
+      return null;
+    }).filter(Boolean);
+  }
+
+  function mergeSourceRecords(sources) {
+    const byDate = new Map();
+    sources.flat().forEach((sourceRow) => {
+      const row = byDate.get(sourceRow.date) || { date: sourceRow.date, consultants: [], registrars: [] };
+      if (sourceRow.consultants.length) { row.consultants = sourceRow.consultants; row._hasConsultants = true; }
+      if (sourceRow.registrars.length) { row.registrars = sourceRow.registrars; row._hasRegistrars = true; }
+      byDate.set(sourceRow.date, row);
+    });
+    return [...byDate.values()].map((row) => {
+      if (!row.consultants.length) row.consultants = [{ label: 'Consultant', value: '#N/A' }];
+      if (!row.registrars.length) row.registrars = [
+        { label: 'Registrar day', value: '#N/A' },
+        { label: 'Registrar night', value: '#N/A' }
+      ];
+      return row;
+    }).sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  function querySourceGrid(definition, source) {
+    const spreadsheetId = source.spreadsheetId || definition.spreadsheetId;
+    const key = `${spreadsheetId}:${source.sheetName}`;
+    if (!sourceGridPromises.has(key)) {
+      const url = sourceUrl({ spreadsheetId, sheetName: source.sheetName });
+      const promise = queryGrid(url).catch((error) => { sourceGridPromises.delete(key); throw error; });
+      sourceGridPromises.set(key, promise);
+    }
+    return sourceGridPromises.get(key);
+  }
+
   function sourceUrl(definition) {
     if (definition.csvUrl) return definition.csvUrl;
     if (!definition.spreadsheetId) return '';
     const params = new URLSearchParams({ sheet: definition.sheetName || '', headers: '1', _: String(Date.now()) });
     return `https://docs.google.com/spreadsheets/d/${encodeURIComponent(definition.spreadsheetId)}/gviz/tq?${params}`;
+  }
+
+  function hasConfiguredSource(definition) {
+    return !!(definition?.sources?.length || sourceUrl(definition || {}));
   }
 
   function cacheKey(trust) { return `oncall-rota-v1-${trust}`; }
@@ -229,12 +313,30 @@
 
   async function loadTrust(trust, currentRequest) {
     const definition = trustConfig[trust] || {};
-    const url = sourceUrl(definition);
-    if (!url) { loadState[trust] = 'unconfigured'; records[trust] = []; dateIndexes[trust] = null; return; }
+    const sourceUrlExists = (definition.sources || []).length > 0 || !!sourceUrl(definition);
+    if (!sourceUrlExists) { loadState[trust] = 'unconfigured'; records[trust] = []; dateIndexes[trust] = null; return; }
     try {
       let parsed;
       let cachedSource;
-      if (definition.csvUrl) {
+      let usedFallback = false;
+      if (definition.sources?.length) {
+        try {
+          const sourceRows = await Promise.all(definition.sources.map(async (source) => {
+            const matrix = await querySourceGrid(definition, source);
+            const rows = parseLongSource(matrix, source);
+            if (!rows.length) throw new Error(`No dated rows were found in ${source.sheetName}.`);
+            return rows;
+          }));
+          parsed = mergeSourceRecords(sourceRows);
+        } catch (sourceError) {
+          if (!definition.fallbackSheetName) throw sourceError;
+          const matrix = await queryGrid(sourceUrl({ spreadsheetId: definition.spreadsheetId, sheetName: definition.fallbackSheetName }));
+          parsed = parseMatrix(matrix);
+          usedFallback = true;
+        }
+        cachedSource = { rows: parsed };
+      } else if (definition.csvUrl) {
+        const url = sourceUrl(definition);
         const separator = url.includes('?') ? '&' : '?';
         const response = await fetch(`${url}${separator}_=${Date.now()}`, { cache: 'no-store' });
         if (!response.ok) throw new Error(`The published sheet returned ${response.status}.`);
@@ -243,16 +345,15 @@
         parsed = parseRows(csv);
         cachedSource = { csv };
       } else {
-        const matrix = await queryGrid(url);
-        parsed = parseMatrix(matrix);
+        parsed = parseMatrix(await queryGrid(sourceUrl(definition)));
         cachedSource = { rows: parsed };
       }
       if (!parsed.length) throw new Error('No dated rota rows were found in this sheet.');
       if (currentRequest !== requestNumber) return;
       records[trust] = parsed;
       dateIndexes[trust] = null;
-      loadState[trust] = 'fresh';
-      messages[trust] = '';
+      loadState[trust] = usedFallback ? 'fallback' : 'fresh';
+      messages[trust] = usedFallback ? `The long-form ${trust} rota could not be read; showing the shorter ${definition.fallbackSheetName} tab.` : '';
       localStorage.setItem(cacheKey(trust), JSON.stringify({ savedAt: Date.now(), ...cachedSource }));
     } catch (error) {
       if (currentRequest !== requestNumber) return;
@@ -275,9 +376,10 @@
 
   async function refreshData() {
     const thisRequest = ++requestNumber;
+    sourceGridPromises = new Map();
     setRefreshBusy(true);
-    loadState.QE = sourceUrl(trustConfig.QE) ? 'loading' : 'unconfigured';
-    loadState.HGS = sourceUrl(trustConfig.HGS) ? 'loading' : 'unconfigured';
+    loadState.QE = hasConfiguredSource(trustConfig.QE) ? 'loading' : 'unconfigured';
+    loadState.HGS = hasConfiguredSource(trustConfig.HGS) ? 'loading' : 'unconfigured';
     messages.QE = ''; messages.HGS = '';
     render();
     await Promise.all(trustOrder.map((trust) => loadTrust(trust, thisRequest)));
@@ -382,6 +484,7 @@
   function namesHtml(value) {
     const safe = safeText(value);
     if (!safe) return '<span class="role-empty">No entry</span>';
+    if (/^#N\/A$/i.test(safe)) return '<span class="role-empty">—</span>';
     const segments = coverSegments(safe);
     if (segments.length === 1) return escapeHtml(safe);
     return segments.map((segment, index) => {
@@ -476,7 +579,7 @@
   function glanceText(snapshot, day) {
     if (!snapshot?.current?.length) return dateLabel(day);
     const group = (label) => /registrar|\bspr\b|\breg\b|\bst[1-8]\b/i.test(label) ? 1 : 0;
-    return [...snapshot.current].sort((a, b) => group(a.label) - group(b.label)).map((role) => `${role.label.replace('Registrar', 'Reg.')}: ${role.value}`).join(' · ');
+    return [...snapshot.current].sort((a, b) => group(a.label) - group(b.label)).map((role) => `${role.label.replace('Registrar', 'Reg.')}: ${/^#N\/A$/i.test(safeText(role.value)) ? '—' : role.value}`).join(' · ');
   }
 
   function cardHtml(trust, day, collapsed, compact = false, currentSnapshot = null) {
@@ -519,13 +622,14 @@
     const day = clock.day;
     ui.currentDate.textContent = dateLabel(day);
     const errors = trustOrder.filter((trust) => loadState[trust] === 'error').map((trust) => `${trust}: ${messages[trust]}`);
-    const errorHtml = errors.length ? `<div class="error-banner">${errors.map(escapeHtml).join('<br>')}</div>` : '';
+    const fallbackNotes = trustOrder.filter((trust) => loadState[trust] === 'fallback').map((trust) => messages[trust]);
+    const errorHtml = `${errors.length ? `<div class="error-banner">${errors.map(escapeHtml).join('<br>')}</div>` : ''}${fallbackNotes.length ? `<div class="fallback-banner">${fallbackNotes.map(escapeHtml).join('<br>')}</div>` : ''}`;
     const hasAny = trustOrder.some((trust) => findOnDate(trust, day));
     const order = getTrustOrder();
     const snapshots = Object.fromEntries(trustOrder.map((trust) => [trust, findNextHandover(trust, clock)]));
     liveSnapshots = snapshots;
     const hasCurrent = Object.values(snapshots).some((snapshot) => snapshot.current.length);
-    ui.nowList.innerHTML = `${errorHtml}${!hasAny && !hasCurrent && trustOrder.every((trust) => loadState[trust] === 'fresh' || loadState[trust] === 'cached') ? '<div class="empty-day"><strong>No rota entries found for today</strong>Check the coming-month view or refresh the published sheets.</div>' : ''}${order.map((trust) => cardHtml(trust, day, !isInitiallyOpen(trust), false, snapshots[trust])).join('')}`;
+    ui.nowList.innerHTML = `${errorHtml}${!hasAny && !hasCurrent && trustOrder.every((trust) => ['fresh', 'cached', 'fallback'].includes(loadState[trust])) ? '<div class="empty-day"><strong>No rota entries found for today</strong>Check the coming-month view or refresh the published sheets.</div>' : ''}${order.map((trust) => cardHtml(trust, day, !isInitiallyOpen(trust), false, snapshots[trust])).join('')}`;
     bindCardToggles(ui.nowList);
   }
 
@@ -568,20 +672,41 @@
     const last = [end, addDays(start, 29)].sort()[0];
     const dates = [];
     for (let day = start; day <= last; day = addDays(day, 1)) dates.push(day);
+    const filter = getNextDaysFilter();
     ui.nextDaysToggle.setAttribute('aria-expanded', String(nextDaysOpen));
+    ui.nextDaysFilter.hidden = !nextDaysOpen;
     ui.nextDaysList.hidden = !nextDaysOpen;
     ui.nextDaysToggle.classList.toggle('is-open', nextDaysOpen);
+    ui.nextDaysFilter.querySelectorAll('[data-next-filter]').forEach((button) => {
+      const selected = button.dataset.nextFilter === filter;
+      button.setAttribute('aria-pressed', String(selected));
+      button.classList.toggle('is-active', selected);
+    });
     if (!nextDaysOpen) { ui.nextDaysList.innerHTML = ''; return; }
+    const sites = filter === 'BOTH' ? getTrustOrder() : [filter];
+    const both = filter === 'BOTH';
     ui.nextDaysList.innerHTML = dates.map((day) => {
       const weekend = [0, 6].includes(keyToDate(day).getUTCDay());
-      const siteSummaries = getTrustOrder().map((trust) => {
-        const row = findOnDate(trust, day);
-        if (!row) return `<span class="next-days-site"><strong>${trust}</strong><span class="role-empty">No entry</span></span>`;
-        const roles = [...row.registrars, ...row.consultants].filter((role) => safeText(role.value));
-        const summary = roles.map((role) => `<span><strong>${escapeHtml(role.label.replace(/\s+(day|night)$/i, ''))}:</strong> ${namesHtml(role.value)}</span>`).join(' · ');
-        return `<span class="next-days-site"><strong>${trust}</strong><span>${summary || '<span class="role-empty">No names entered</span>'}</span></span>`;
-      }).join('');
-      return `<button class="next-days-row${weekend ? ' is-weekend' : ''}${day === selectedMonthDate ? ' is-selected' : ''}" type="button" data-next-date="${day}"><span class="next-days-date">${escapeHtml(`${weekday(day)} ${shortDate(day)}`)}</span><span class="next-days-sites">${siteSummaries}</span></button>`;
+      const selected = day === selectedMonthDate;
+      const today = day === start;
+      const classes = ['next-days-card', both ? 'both-view' : 'single-view'];
+      if (weekend) classes.push('is-weekend');
+      if (selected) classes.push('is-selected');
+      if (today) classes.push('is-today');
+      if (both) {
+        const rows = sites.map((trust) => compactSiteRow(trust, day)).join('');
+        return `<button class="${classes.join(' ')}" type="button" data-next-date="${day}">
+          <span class="next-days-date-top">${escapeHtml(`${weekday(day)} ${shortDate(day)}`)}</span>
+          <span class="next-days-columns both-columns"><span></span><span>Consultant</span><span>Registrar</span></span>
+          ${rows}</button>`;
+      }
+      const trust = sites[0];
+      const row = findOnDate(trust, day);
+      return `<button class="${classes.join(' ')}" type="button" data-next-date="${day}">
+        <span class="next-days-date-side"><span class="next-days-site">${escapeHtml(trust)}</span><span>${escapeHtml(weekday(day))}</span><span>${escapeHtml(shortDate(day))}</span></span>
+        <span class="next-days-single-content"><span class="next-days-columns single-columns"><span>Consultant</span><span>Registrar</span></span>
+        <span class="next-days-values"><span class="next-days-consultant">${compactConsultantsHtml(row?.consultants || [])}</span><span class="next-days-registrar">${compactRegistrarsHtml(row?.registrars || [])}</span></span></span>
+      </button>`;
     }).join('');
     ui.nextDaysList.querySelectorAll('[data-next-date]').forEach((button) => button.addEventListener('click', () => {
       selectedMonthDate = button.dataset.nextDate;
@@ -590,6 +715,64 @@
       renderMonth();
       ui.selectedDateTitle.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }));
+  }
+
+  function missingRotaValue(value) { return !safeText(value) || /^#N\/A$/i.test(safeText(value)); }
+
+  function compactCoverHtml(value) {
+    const raw = safeText(value);
+    if (missingRotaValue(raw)) return '<span class="lookahead-dash">—</span>';
+    const parsed = coverSegments(raw);
+    let periods;
+    if (parsed.length > 1) {
+      periods = parsed.map((part, index) => ({
+        name: part.name,
+        label: index === 0 ? `Until ${displayTime(parsed[index + 1].from)}` : `From ${displayTime(part.from)}`
+      }));
+    } else {
+      const time = '(\\d{1,2}(?:[:.]\\d{2})?)';
+      const slotPattern = new RegExp(`^\\s*${time}\\s*[-–]\\s*${time}\\s+(.+?)\\s*$`);
+      const slots = raw.split(/;|\n+/).map((part) => part.trim()).filter(Boolean).map((part) => {
+        const match = part.match(slotPattern);
+        if (!match) return null;
+        const from = parseClock(match[1]), to = parseClock(match[2]);
+        return from === null || to === null ? null : { from, to, name: match[3] };
+      });
+      periods = slots.length > 1 && slots.every(Boolean) ? slots.map((part, index) => ({
+        name: part.name,
+        label: index === 0 ? `Until ${displayTime(part.to)}` : `From ${displayTime(part.from)}`
+      })) : [{ name: raw, label: '' }];
+    }
+    return periods.map((part) => `<span class="consultant-period">${part.label ? `<span class="consultant-period-time">${escapeHtml(part.label)}</span>` : ''}<span>${escapeHtml(part.name)}</span></span>`).join('');
+  }
+
+  function compactConsultantsHtml(roles) {
+    const day = roles.find((role) => /day/i.test(role.label));
+    const night = roles.find((role) => /night/i.test(role.label));
+    if (day && night) {
+      if (missingRotaValue(day.value) && missingRotaValue(night.value)) return '<span class="lookahead-dash">—</span>';
+      if (!missingRotaValue(day.value) && !missingRotaValue(night.value) && safeText(day.value).toLocaleLowerCase('en-GB') === safeText(night.value).toLocaleLowerCase('en-GB')) return compactCoverHtml(day.value);
+      return `<span class="consultant-shift"><span class="consultant-shift-label">Day</span>${compactCoverHtml(day.value)}</span><span class="consultant-shift"><span class="consultant-shift-label">Night</span>${compactCoverHtml(night.value)}</span>`;
+    }
+    const usable = roles.filter((role) => safeText(role.value));
+    return usable.length ? usable.map((role) => compactCoverHtml(role.value)).join('') : '<span class="lookahead-dash">—</span>';
+  }
+
+  function compactRegistrarsHtml(roles) {
+    const day = roles.find((role) => /day/i.test(role.label));
+    const night = roles.find((role) => /night/i.test(role.label));
+    if (day && night) {
+      if (missingRotaValue(day.value) && missingRotaValue(night.value)) return '<span class="lookahead-dash">—</span>';
+      if (!missingRotaValue(day.value) && !missingRotaValue(night.value) && safeText(day.value).toLocaleLowerCase('en-GB') === safeText(night.value).toLocaleLowerCase('en-GB')) return `<span>${escapeHtml(safeText(day.value))}</span>`;
+      return `<span>${missingRotaValue(day.value) ? '<span class="lookahead-dash">—</span>' : escapeHtml(safeText(day.value))}</span><span class="registrar-divider"> / </span><span>${missingRotaValue(night.value) ? '<span class="lookahead-dash">—</span>' : escapeHtml(safeText(night.value))}</span>`;
+    }
+    const usable = roles.filter((role) => safeText(role.value));
+    return usable.length ? usable.map((role) => missingRotaValue(role.value) ? '<span class="lookahead-dash">—</span>' : `<span>${escapeHtml(safeText(role.value))}</span>`).join('<span class="registrar-divider"> / </span>') : '<span class="lookahead-dash">—</span>';
+  }
+
+  function compactSiteRow(trust, day) {
+    const row = findOnDate(trust, day);
+    return `<span class="next-days-site-row"><span class="next-days-site">${escapeHtml(trust)}</span><span class="next-days-consultant">${compactConsultantsHtml(row?.consultants || [])}</span><span class="next-days-registrar">${compactRegistrarsHtml(row?.registrars || [])}</span></span>`;
   }
 
   function navigateDate(amount) {
@@ -716,6 +899,25 @@
     return first === 'QE' ? ['QE', 'HGS'] : ['HGS', 'QE'];
   }
 
+  function getNextDaysFilter() {
+    if (nextDaysSiteFilter) return nextDaysSiteFilter;
+    const saved = readDisplaySettings();
+    nextDaysSiteFilter = saved?.lookaheadFilter || saved?.first || queryFirstSite() || 'BOTH';
+    return nextDaysSiteFilter;
+  }
+
+  function saveNextDaysFilter(filter) {
+    const saved = readDisplaySettings();
+    const queryFirst = queryFirstSite();
+    const first = filter === 'HGS' || filter === 'QE' ? filter : saved?.first || queryFirst || 'HGS';
+    const open = saved?.open || { QE: queryFirst === 'QE', HGS: queryFirst === 'HGS' };
+    const value = { first, open, lookaheadFilter: filter };
+    nextDaysSiteFilter = filter;
+    try { localStorage.setItem('oncall:display-settings', JSON.stringify(value)); } catch {}
+    renderNow();
+    renderMonth();
+  }
+
   function queryFirstSite() {
     const first = new URLSearchParams(window.location.search).get('first')?.toUpperCase();
     return first === 'QE' || first === 'HGS' ? first : null;
@@ -725,7 +927,8 @@
     try {
       const value = JSON.parse(localStorage.getItem('oncall:display-settings') || 'null');
       if (!value || !['QE', 'HGS'].includes(value.first)) return null;
-      return { first: value.first, open: { QE: !!value.open?.QE, HGS: !!value.open?.HGS } };
+      const lookaheadFilter = ['BOTH', 'QE', 'HGS'].includes(value.lookaheadFilter) ? value.lookaheadFilter : value.first;
+      return { first: value.first, open: { QE: !!value.open?.QE, HGS: !!value.open?.HGS }, lookaheadFilter };
     } catch { return null; }
   }
 
@@ -739,19 +942,23 @@
     const saved = readDisplaySettings();
     if (saved) return saved;
     const first = queryFirstSite() || 'HGS';
-    return { first, open: { QE: first === 'QE', HGS: first === 'HGS' } };
+    return { first, open: { QE: first === 'QE', HGS: first === 'HGS' }, lookaheadFilter: queryFirstSite() || 'BOTH' };
   }
 
   function openSettings() {
     const draft = settingsDraft();
     ui.firstSiteSetting.value = draft.first;
+    ui.defaultSiteFilterSetting.value = draft.lookaheadFilter;
     ui.qeOpenSetting.checked = draft.open.QE;
     ui.hgsOpenSetting.checked = draft.open.HGS;
     ui.settingsDialog.showModal();
   }
 
   function saveSettings() {
-    const value = { first: ui.firstSiteSetting.value, open: { QE: ui.qeOpenSetting.checked, HGS: ui.hgsOpenSetting.checked } };
+    const lookaheadFilter = ui.defaultSiteFilterSetting.value;
+    const first = lookaheadFilter === 'HGS' || lookaheadFilter === 'QE' ? lookaheadFilter : ui.firstSiteSetting.value;
+    const value = { first, open: { QE: ui.qeOpenSetting.checked, HGS: ui.hgsOpenSetting.checked }, lookaheadFilter };
+    nextDaysSiteFilter = lookaheadFilter;
     try { localStorage.setItem('oncall:display-settings', JSON.stringify(value)); } catch {}
     ui.settingsDialog.close();
     renderNow();
@@ -804,6 +1011,13 @@
   ui.nextDate.addEventListener('click', () => navigateDate(1));
   ui.dateSectionToggle.addEventListener('click', () => { dateSectionOpen = !dateSectionOpen; renderMonth(); });
   ui.nextDaysToggle.addEventListener('click', () => { nextDaysOpen = !nextDaysOpen; renderMonth(); });
+  ui.nextDaysFilter.querySelectorAll('[data-next-filter]').forEach((button) => button.addEventListener('click', () => saveNextDaysFilter(button.dataset.nextFilter)));
+  ui.defaultSiteFilterSetting.addEventListener('change', () => {
+    if (ui.defaultSiteFilterSetting.value === 'HGS' || ui.defaultSiteFilterSetting.value === 'QE') ui.firstSiteSetting.value = ui.defaultSiteFilterSetting.value;
+  });
+  ui.firstSiteSetting.addEventListener('change', () => {
+    if (ui.defaultSiteFilterSetting.value !== 'BOTH') ui.defaultSiteFilterSetting.value = ui.firstSiteSetting.value;
+  });
   ui.refresh.addEventListener('click', refreshData);
   ui.footerRefresh.addEventListener('click', refreshData);
   ui.search.addEventListener('input', renderMonth);
