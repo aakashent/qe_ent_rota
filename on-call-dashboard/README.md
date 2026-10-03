@@ -4,31 +4,24 @@ A mobile-first, static PWA for the QE and HGS on-call rotas. It is designed for 
 
 ## Included
 
-- **Now** shows the active day/night cover, each role's next handover time, and the next overall handover, including custom times written in rota cells. **Coming month** has two collapsible sections: **Search or select date** contains search, the calendar and the selected QE/HGS rotas; **30-day look ahead** lists both sites by date. Selecting a date opens both QE and HGS, with consultants on the left and registrars on the right. Previous/next-day controls and the list provide alternatives to calendar scrolling. Search finds and highlights matching names or dates, with weekends shaded differently.
+- **Now** shows the active day/night cover, each role's next handover time, and the next overall handover, including custom times written in rota cells. **Coming month** has two sections, both collapsed on first use: **Search or select date** contains search, the calendar and selected QE/HGS rotas; **30-day look ahead** has Both, HGS and QE filters. Selecting a date opens both site rotas. The look-ahead uses a two-row, two-site card in Both mode and a compact date-column card for one site. Search finds and highlights matching names or dates, with weekends shaded differently.
 - Auto, light and dark themes, with the visitor's choice saved on their device.
-- QE and HGS rota panels. With no saved preferences or URL parameter, both start collapsed. Without saved settings, `?first=QE` puts QE first and opens it. The Settings button saves the preferred order and each panel's default open state on the device; saved settings then take priority over the URL parameter.
+- QE and HGS rota panels. With no saved preferences or URL parameter, both start collapsed. Without saved settings, `?first=QE` puts QE first and opens it. The Settings button saves the preferred order, default 30-day filter and each panel's default open state on the device; saved settings then take priority over the URL parameter. Choosing HGS or QE as the default filter also sets that site first in Both mode.
 - Automatic column detection for a date, one consultant column or consultant day/night columns, and registrar day/night columns.
 - Five-minute refresh while online; the last fetched rota is saved locally and labelled if shown offline.
 - PWA manifest, icons and a service worker that caches the page shell, not remote rota responses.
 
 ## Configure the sheets
 
-Edit `config.js`:
+Edit `config.js` to change the public workbook ID or source tabs. The app joins the long-form source sheets by date:
 
-```js
-QE: {
-  spreadsheetId: 'GOOGLE_SHEET_ID',
-  sheetName: 'QE'
-},
-HGS: {
-  spreadsheetId: 'HGS_GOOGLE_SHEET_ID',
-  sheetName: 'HGS'
-}
-```
+- QE registrars: `QE Reg` columns A, M and N.
+- HGS registrars: `HGS Reg` columns A, C and D.
+- Consultants: `Consultant Rota` columns A, C, E and F. Column D, Solihull On Call, is not used.
 
-The spreadsheet must be viewable by anyone with the link and the tab must be accessible to the query. `spreadsheetId` is the part of the Google Sheets URL between `/d/` and `/edit`. An optional `csvUrl` can be used for another CSV endpoint that allows cross-origin browser reads.
+The workbook and each source tab must be accessible to the published page. The short `QE` and `HGS` tabs are retained as fallbacks if any long-form source cannot be read. No Google API key or service account is needed.
 
-QE and HGS are configured as tabs in the spreadsheet supplied for this project. The current QE tab headers (`Date`, `SpR Day`, `SpR Night`, `Consultant`) are supported. HGS may use separate `Consultant Day` and `Consultant Night` columns; these are detected automatically. If HGS is moved to another spreadsheet, change only its `spreadsheetId` in `config.js`.
+The consultant rota provides QE First On Call for QE and BHH Daytime/Overnight for HGS. Consultant day/night values are kept distinct when they differ. The Solihull on-call column is ignored.
 
 Cell values may specify timed changes, for example `Name / after 1pm Other Name` or `Name until 13:00 / from 14:00 Other Name`. The live cover view follows those handovers. Standard day/night switching is set to 08:00 and 17:00 in `config.js`.
 
