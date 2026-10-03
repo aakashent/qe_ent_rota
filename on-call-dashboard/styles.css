@@ -131,6 +131,7 @@ h2 { margin-bottom: 0; color: var(--navy); font-size: 23px; line-height: 1.2; }
 .empty-day { border: 1px dashed var(--line); border-radius: 15px; padding: 25px; background: var(--paper); color: var(--ink-soft); text-align: center; }
 .empty-day strong { display: block; margin-bottom: 6px; color: var(--navy); font-family: Manrope, sans-serif; font-size: 15px; }
 .error-banner { margin-bottom: 13px; border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px; background: var(--amber-wash); color: var(--ink-soft); font-size: 12px; line-height: 1.5; }
+.fallback-banner { margin-bottom: 13px; border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; background: var(--surface-soft); color: var(--muted); font-size: 11px; line-height: 1.45; }
 
 .month-heading { align-items: end; }
 .search-box { width: min(100%, 280px); display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 0 10px; background: var(--paper); color: var(--muted); }
@@ -200,14 +201,36 @@ mark { border-radius: 3px; padding: 0 2px; background: #edf3ee; color: var(--ink
 .selected-date-nav .calendar-nav-button { flex: 0 0 32px; }
 .month-rota-list { display: grid; gap: 11px; }
 .next-days { margin-top: 13px; border-top: 1px solid var(--line); }
+.site-filter { display: inline-flex; gap: 3px; margin: 1px 0 10px; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: var(--surface-soft); }
+.site-filter button { min-width: 48px; border: 0; border-radius: 7px; padding: 6px 10px; background: transparent; color: var(--ink-soft); font-size: 11px; font-weight: 700; cursor: pointer; }
+.site-filter button.is-active { background: var(--teal-dark); color: var(--paper); }
+.site-filter button:focus-visible, .next-days-card:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 .next-days-list { display: grid; gap: 6px; }
-.next-days-row { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 10px; align-items: start; width: 100%; border: 1px solid var(--line); border-radius: 11px; padding: 10px; background: var(--paper); text-align: left; cursor: pointer; }
-.next-days-row:hover, .next-days-row.is-selected { border-color: var(--teal); }
-.next-days-row.is-weekend { background: var(--weekend); }
-.next-days-date { color: var(--ink-soft); font-family: var(--mono); font-size: 11px; }
-.next-days-sites { display: grid; gap: 4px; min-width: 0; color: var(--ink-soft); font-size: 11px; overflow-wrap: anywhere; }
-.next-days-site { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 5px; }
-.next-days-site strong { color: var(--ink); }
+.next-days-card { width: 100%; min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 11px; background: var(--paper); color: var(--ink); text-align: left; font: inherit; cursor: pointer; }
+.next-days-card:hover { border-color: var(--teal); }
+.next-days-card.is-selected { border-color: var(--teal-dark); box-shadow: inset 0 0 0 1px var(--teal-dark); }
+.next-days-card.is-today .next-days-date-top, .next-days-card.is-today .next-days-date-side { color: var(--teal-dark); }
+.next-days-card.is-weekend { background: var(--weekend); }
+.next-days-date-top { display: block; border-bottom: 1px solid var(--line); padding: 6px 9px 5px; color: var(--ink); font-size: 11px; font-weight: 800; }
+.next-days-columns, .next-days-site-row, .next-days-values { display: grid; gap: 7px; min-width: 0; }
+.both-columns, .next-days-site-row { grid-template-columns: 38px minmax(0, 1fr) minmax(0, 1.08fr); }
+.next-days-columns { padding: 4px 8px 2px; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .045em; text-transform: uppercase; }
+.next-days-site-row { align-items: start; border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent); padding: 5px 8px; font-size: 11px; line-height: 1.25; }
+.next-days-site { color: var(--ink-soft); font-size: 10px; font-weight: 800; }
+.next-days-consultant, .next-days-registrar { min-width: 0; overflow-wrap: anywhere; }
+.next-days-single-content { min-width: 0; display: block; padding: 0 8px 5px; }
+.single-columns, .next-days-values { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); }
+.single-columns { padding: 5px 0 2px; }
+.next-days-values { align-items: start; font-size: 11px; line-height: 1.25; }
+.next-days-date-side { display: flex; flex-direction: column; justify-content: center; gap: 2px; border-right: 1px solid var(--line); padding: 6px 6px; color: var(--ink-soft); font-family: var(--mono); font-size: 10px; font-weight: 700; line-height: 1.2; }
+.single-view { display: grid; grid-template-columns: 63px minmax(0, 1fr); }
+.consultant-period { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 4px; min-width: 0; }
+.consultant-period + .consultant-period { margin-top: 2px; }
+.consultant-period-time, .consultant-shift-label { color: var(--muted); font-size: 9px; font-weight: 600; white-space: nowrap; }
+.consultant-shift { display: block; }
+.consultant-shift + .consultant-shift { margin-top: 2px; }
+.registrar-divider { color: var(--muted); }
+.lookahead-dash { color: var(--muted); }
 .settings-dialog { width: min(420px, calc(100vw - 28px)); max-width: none; border: 1px solid var(--line); border-radius: 18px; padding: 21px; background: var(--paper); color: var(--ink); box-shadow: 0 18px 60px rgba(0, 0, 0, .22); }
 .settings-dialog::backdrop { background: rgba(12, 19, 22, .48); backdrop-filter: blur(2px); }
 .settings-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
@@ -255,8 +278,11 @@ mark { border-radius: 3px; padding: 0 2px; background: #edf3ee; color: var(--ink
   .search-box { width: 100%; }
   .search-result { grid-template-columns: 68px minmax(0, 1fr); gap: 7px; padding: 8px; }
   .search-result-roles { font-size: 11px; }
-  .next-days-row { grid-template-columns: 68px minmax(0, 1fr); gap: 7px; padding: 8px; }
-  .next-days-sites { font-size: 10px; }
+  .both-columns, .next-days-site-row { grid-template-columns: 34px minmax(0, 1fr) minmax(0, 1.08fr); gap: 5px; }
+  .single-view { grid-template-columns: 58px minmax(0, 1fr); }
+  .next-days-single-content { padding-right: 6px; padding-left: 7px; }
+  .next-days-date-side { padding-right: 4px; padding-left: 5px; font-size: 9px; }
+  .next-days-values { gap: 5px; font-size: 10px; }
   .month-calendar { padding: 9px; }
   .calendar-weekdays, .calendar-grid { gap: 4px; }
   .calendar-day { border-radius: 9px; font-size: 12px; }
