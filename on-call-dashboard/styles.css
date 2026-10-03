@@ -74,6 +74,9 @@ button { color: inherit; }
   background: var(--nav-bg);
   color: var(--nav-fg);
 }
+@media (display-mode: standalone) {
+  .topbar { height: calc(68px + env(safe-area-inset-top, 0px)); padding-top: env(safe-area-inset-top, 0px); }
+}
 .brand { display: inline-flex; gap: 10px; align-items: center; color: var(--nav-fg); text-decoration: none; font-family: var(--serif); font-weight: 800; letter-spacing: -.03em; }
 .brand-mark { width: 31px; height: 31px; border-radius: 10px; display: grid; place-items: center; background: var(--teal); color: #fff; font-size: 10px; letter-spacing: -.04em; }
 .topbar-actions { display: flex; gap: 14px; align-items: center; }
@@ -324,6 +327,10 @@ mark { border-radius: 3px; padding: 0 2px; background: #edf3ee; color: var(--ink
   .role-grid { grid-template-columns: 1fr; }
   .calendar-weekdays, .calendar-grid { gap: 3px; }
   .calendar-day { border-radius: 8px; }
+}
+
+@media (display-mode: standalone) and (max-width: 620px) {
+  .topbar { height: calc(60px + env(safe-area-inset-top, 0px)); padding-top: env(safe-area-inset-top, 0px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
