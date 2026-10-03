@@ -88,8 +88,13 @@
               <div class="month-calendar" aria-label="Dates in the coming months">
                 <div class="calendar-month-nav">
                   <button id="previous-month" class="calendar-nav-button" type="button" aria-label="Previous month">‹</button>
-                  <h3 id="calendar-month-label" class="calendar-month-label"></h3>
+                  <button id="calendar-month-label" class="calendar-month-label" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="calendar-month-picker"><span id="calendar-month-text"></span><span class="calendar-month-chevron" aria-hidden="true">⌄</span></button>
                   <button id="next-month" class="calendar-nav-button" type="button" aria-label="Next month">›</button>
+                </div>
+                <div id="calendar-month-picker" class="calendar-month-picker" role="dialog" aria-label="Choose month and year" hidden>
+                  <div class="calendar-picker-head"><label for="calendar-year-select">Year</label><select id="calendar-year-select" class="calendar-year-select" aria-label="Choose year"></select></div>
+                  <div id="calendar-month-options" class="calendar-month-options" role="group" aria-label="Choose month"></div>
+                  <div class="calendar-picker-actions"><button id="calendar-today" type="button" class="calendar-picker-today">Today</button><button id="calendar-picker-close" type="button" class="calendar-picker-close">Close</button></div>
                 </div>
                 <div class="calendar-weekdays" aria-hidden="true"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
                 <div id="month-date-grid" class="calendar-grid" role="group" aria-label="Select a date"></div>
