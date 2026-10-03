@@ -71,41 +71,41 @@
               <p class="eyebrow">PLAN AHEAD</p>
               <h2 id="month-title">Coming month</h2>
             </div>
-            <button id="search-toggle" class="search-toggle" type="button" aria-expanded="false" aria-controls="search-panel"><span aria-hidden="true">⌕</span> Search</button>
           </div>
-          <p id="month-caption" class="month-caption">Tap a date to see who is on call</p>
-          <div id="search-panel" class="search-panel" hidden>
-            <label class="search-box">
-              <span class="sr-only">Search dates or names</span>
-              <span class="search-icon" aria-hidden="true">⌕</span>
-              <input id="search-input" type="search" placeholder="Search names or dates" autocomplete="off">
-              <button id="clear-search" class="clear-search" type="button" aria-label="Clear search" hidden>×</button>
-            </label>
-            <div id="search-results" class="search-results" aria-live="polite" hidden></div>
-          </div>
-          <div class="month-calendar" aria-label="Dates in the coming months">
-            <div class="calendar-month-nav">
-              <button id="previous-month" class="calendar-nav-button" type="button" aria-label="Previous month">‹</button>
-              <h3 id="calendar-month-label" class="calendar-month-label"></h3>
-              <button id="next-month" class="calendar-nav-button" type="button" aria-label="Next month">›</button>
-            </div>
-            <div class="calendar-weekdays" aria-hidden="true"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
-            <div id="month-date-grid" class="calendar-grid" role="group" aria-label="Select a date"></div>
-          </div>
-          <section class="selected-day" aria-live="polite">
-            <div class="selected-date-nav">
-              <button id="previous-date" class="calendar-nav-button" type="button" aria-label="Previous date">‹</button>
-              <button id="selected-day-toggle" class="selected-date-toggle" type="button" aria-expanded="true" aria-controls="selected-day-content">
-                <span id="selected-date-title" class="selected-date-title"></span><span class="selected-date-chevron" aria-hidden="true">⌄</span>
-              </button>
-              <button id="next-date" class="calendar-nav-button" type="button" aria-label="Next date">›</button>
-            </div>
-            <div id="selected-day-content">
-              <div id="month-rota-list" class="month-rota-list"></div>
+          <section class="date-selection">
+            <button id="date-selection-toggle" class="date-selection-toggle" type="button" aria-expanded="true" aria-controls="date-selection-content">
+              <span>Search or select date</span><span class="trust-chevron" aria-hidden="true">⌄</span>
+            </button>
+            <div id="date-selection-content">
+              <p id="month-caption" class="month-caption">Tap a date to see who is on call</p>
+              <label class="search-box month-search-box">
+                <span class="sr-only">Search dates or names</span>
+                <span class="search-icon" aria-hidden="true">⌕</span>
+                <input id="search-input" type="search" placeholder="Search names or dates" autocomplete="off">
+                <button id="clear-search" class="clear-search" type="button" aria-label="Clear search" hidden>×</button>
+              </label>
+              <div id="search-results" class="search-results" aria-live="polite" hidden></div>
+              <div class="month-calendar" aria-label="Dates in the coming months">
+                <div class="calendar-month-nav">
+                  <button id="previous-month" class="calendar-nav-button" type="button" aria-label="Previous month">‹</button>
+                  <h3 id="calendar-month-label" class="calendar-month-label"></h3>
+                  <button id="next-month" class="calendar-nav-button" type="button" aria-label="Next month">›</button>
+                </div>
+                <div class="calendar-weekdays" aria-hidden="true"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+                <div id="month-date-grid" class="calendar-grid" role="group" aria-label="Select a date"></div>
+              </div>
+              <section class="selected-day" aria-live="polite">
+                <div class="selected-date-nav">
+                  <button id="previous-date" class="calendar-nav-button" type="button" aria-label="Previous date">‹</button>
+                  <h3 id="selected-date-title" class="selected-date-title"></h3>
+                  <button id="next-date" class="calendar-nav-button" type="button" aria-label="Next date">›</button>
+                </div>
+                <div id="month-rota-list" class="month-rota-list"></div>
+              </section>
             </div>
           </section>
           <section class="next-days">
-            <button id="next-days-toggle" class="next-days-toggle" type="button" aria-expanded="false" aria-controls="next-days-list">Next 30 days<span class="trust-chevron" aria-hidden="true">⌄</span></button>
+            <button id="next-days-toggle" class="next-days-toggle" type="button" aria-expanded="false" aria-controls="next-days-list">30-day look ahead<span class="trust-chevron" aria-hidden="true">⌄</span></button>
             <div id="next-days-list" class="next-days-list" hidden></div>
           </section>
         </section>
