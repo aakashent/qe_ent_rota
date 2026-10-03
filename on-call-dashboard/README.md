@@ -4,9 +4,9 @@ A mobile-first, static PWA for the QE and HGS on-call rotas. It is designed for 
 
 ## Included
 
-- **Now** shows the active day/night cover, each role's next handover time, and the next overall handover, including custom times written in rota cells. **Coming month** uses a compact calendar; selecting a date opens both QE and HGS, with consultants on the left and registrars on the right. Previous/next-day controls and a collapsible 30-day list provide alternatives to calendar scrolling. Search finds and highlights matching names or dates across the rota, with weekends shaded differently.
+- **Now** shows the active day/night cover, each role's next handover time, and the next overall handover, including custom times written in rota cells. **Coming month** uses a compact calendar; selecting a date opens both QE and HGS, with consultants on the left and registrars on the right. Search is collapsible; the next-30-days list sits directly below the calendar. Previous/next-day controls and the list provide alternatives to calendar scrolling. Search finds and highlights matching names or dates, with weekends shaded differently.
 - Auto, light and dark themes, with the visitor's choice saved on their device.
-- QE and HGS rota panels. HGS is expanded by default; `?first=QE` puts QE first and expanded, with HGS collapsed. With no parameter (or any value other than QE), HGS is first and expanded.
+- QE and HGS rota panels. With no saved preferences or URL parameter, both start collapsed. Without saved settings, `?first=QE` puts QE first and opens it. The Settings button saves the preferred order and each panel's default open state on the device; saved settings then take priority over the URL parameter.
 - Automatic column detection for a date, one consultant column or consultant day/night columns, and registrar day/night columns.
 - Five-minute refresh while online; the last fetched rota is saved locally and labelled if shown offline.
 - PWA manifest, icons and a service worker that caches the page shell, not remote rota responses.
