@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#102a43">
+    <meta name="theme-color" content="#1c2327">
     <meta name="description" content="Current and upcoming hospital on-call rotas.">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -11,7 +11,11 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="./assets/icon.svg">
+    <script>(function(){try{var t=localStorage.getItem('oncall:theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}})();</script>
     <link rel="stylesheet" href="./styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
     <script src="https://www.gstatic.com/charts/loader.js"></script>
     <title>On call</title>
   </head>
@@ -24,6 +28,7 @@
         </a>
         <div class="topbar-actions">
           <span id="network-state" class="network-state" aria-live="polite">Loading rota…</span>
+          <button id="theme-button" class="theme-button" type="button" aria-label="Colour theme: Auto" title="Colour theme: Auto">Auto</button>
           <button id="install-button" class="install-button" type="button" hidden>Install</button>
         </div>
       </header>
@@ -73,6 +78,7 @@
             </label>
           </div>
           <p id="month-caption" class="month-caption">Tap a date to see who is on call</p>
+          <div id="search-results" class="search-results" aria-live="polite" hidden></div>
           <div class="month-calendar" aria-label="Dates in the coming months">
             <div class="calendar-month-nav">
               <button id="previous-month" class="calendar-nav-button" type="button" aria-label="Previous month">‹</button>
