@@ -1,4 +1,4 @@
-const CACHE_NAME = 'oncall-shell-v3';
+const CACHE_NAME = 'oncall-shell-v5';
 const APP_FILES = ['./', './index.html', './styles.css', './config.js', './app.js', './manifest.webmanifest', './assets/icon.svg'];
 
 self.addEventListener('install', (event) => {
