@@ -467,7 +467,7 @@
       const message = snapshot.ended ? 'No further rota entry found.' : 'No change found in the next 7 days.';
       handover = `<div class="handover-card"><span><strong>Next handover</strong></span><span>${message}</span></div>`;
     }
-    return `<div class="current-snapshot"><div class="snapshot-heading"><span>${shift}</span><time>${displayTime(minute)}</time></div><div class="snapshot-roles">${roles}</div>${handover}</div>`;
+    return `<div class="current-snapshot"><div class="snapshot-heading"><span>${shift}</span><time>${displayTime(minute)}</time></div><div class="snapshot-roles">${groups}</div>${handover}</div>`;
   }
 
   function glanceText(snapshot, day) {
