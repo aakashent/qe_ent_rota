@@ -5,6 +5,7 @@
   const trustConfig = config.trusts || {};
   const trustOrder = ['QE', 'HGS'];
   const records = { QE: [], HGS: [] };
+  const dateIndexes = { QE: null, HGS: null };
   const loadState = { QE: 'loading', HGS: 'loading' };
   const messages = { QE: '', HGS: '' };
   let lastFetch = null;
@@ -14,6 +15,7 @@
   let selectedMonthDate = null;
   let visibleMonthStart = null;
   let lastMonthQuery = '';
+  let showAllSearchResults = false;
 
   const $ = (id) => document.getElementById(id);
   const ui = {
@@ -23,8 +25,8 @@
     monthGrid: $('month-date-grid'), selectedDateTitle: $('selected-date-title'),
     calendarMonthLabel: $('calendar-month-label'), previousMonth: $('previous-month'), nextMonth: $('next-month'),
     nowTab: $('now-tab'), monthTab: $('month-tab'), nowView: $('now-view'), monthView: $('month-view'),
-    search: $('search-input'), clearSearch: $('clear-search'), refresh: $('refresh-button'),
-    footerRefresh: $('footer-refresh'), install: $('install-button')
+    search: $('search-input'), clearSearch: $('clear-search'), searchResults: $('search-results'), refresh: $('refresh-button'),
+    footerRefresh: $('footer-refresh'), install: $('install-button'), theme: $('theme-button')
   };
 
   const dateFmt = new Intl.DateTimeFormat('en-GB', { timeZone: config.dateTimeZone || 'Europe/London', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -60,6 +62,18 @@
   function shiftMonth(key, amount) {
     const [year, month] = key.split('-').map(Number);
     return new Date(Date.UTC(year, month - 1 + amount, 1, 12)).toISOString().slice(0, 10);
+  }
+
+  function lookaheadEnd(start = todayKey()) {
+    const configuredEnd = addDays(start, Math.max(1, Number(config.dateLookaheadDays) || 90));
+    const latest = trustOrder.flatMap((trust) => records[trust].map((row) => row.date)).filter((day) => day >= start).sort().pop();
+    return latest && latest > configuredEnd ? latest : configuredEnd;
+  }
+
+  function lookaheadMonths(start, end) {
+    const [sy, sm] = start.split('-').map(Number);
+    const [ey, em] = end.split('-').map(Number);
+    return Math.max(1, (ey - sy) * 12 + em - sm + 1);
   }
 
   function dateKey(value) {
@@ -210,7 +224,7 @@
   async function loadTrust(trust, currentRequest) {
     const definition = trustConfig[trust] || {};
     const url = sourceUrl(definition);
-    if (!url) { loadState[trust] = 'unconfigured'; records[trust] = []; return; }
+    if (!url) { loadState[trust] = 'unconfigured'; records[trust] = []; dateIndexes[trust] = null; return; }
     try {
       let parsed;
       let cachedSource;
@@ -230,6 +244,7 @@
       if (!parsed.length) throw new Error('No dated rota rows were found in this sheet.');
       if (currentRequest !== requestNumber) return;
       records[trust] = parsed;
+      dateIndexes[trust] = null;
       loadState[trust] = 'fresh';
       messages[trust] = '';
       localStorage.setItem(cacheKey(trust), JSON.stringify({ savedAt: Date.now(), ...cachedSource }));
@@ -240,6 +255,7 @@
         try {
           const saved = JSON.parse(cached);
           records[trust] = Array.isArray(saved.rows) ? saved.rows : parseRows(saved.csv || '');
+          dateIndexes[trust] = null;
           loadState[trust] = records[trust].length ? 'cached' : 'error';
           messages[trust] = records[trust].length ? 'Showing the last saved rota because the published sheet could not be refreshed.' : error.message;
         } catch {
@@ -260,6 +276,12 @@
     render();
     await Promise.all(trustOrder.map((trust) => loadTrust(trust, thisRequest)));
     if (thisRequest !== requestNumber) return;
+    if (records.QE.length && records.HGS.length && loadState.HGS !== 'unconfigured' && JSON.stringify(records.QE) === JSON.stringify(records.HGS)) {
+      records.HGS = [];
+      dateIndexes.HGS = null;
+      loadState.HGS = 'error';
+      messages.HGS = 'The HGS query returned the same rows as QE. Check that the HGS tab exists and is published.';
+    }
     lastFetch = Date.now();
     setRefreshBusy(false);
     render();
@@ -272,27 +294,173 @@
   }
 
   function todayKey() { return londonDateKey(new Date()); }
-  function findOnDate(trust, day) { return records[trust].find((row) => row.date === day) || null; }
+  function londonClock() {
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: config.dateTimeZone || 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
+    const part = Object.fromEntries(parts.map((x) => [x.type, x.value]));
+    return { day: `${part.year}-${part.month}-${part.day}`, minute: Number(part.hour) * 60 + Number(part.minute) };
+  }
+  function findOnDate(trust, day) {
+    if (!dateIndexes[trust]) dateIndexes[trust] = new Map(records[trust].map((row) => [row.date, row]));
+    return dateIndexes[trust].get(day) || null;
+  }
   function dateLabel(key) { return dateFmt.format(keyToDate(key)); }
   function shortDate(key) { return shortDateFmt.format(keyToDate(key)); }
   function weekday(key) { return weekdayFmt.format(keyToDate(key)); }
 
   function safeText(value) { return String(value || '').trim(); }
 
+  const coverCache = new Map();
+  const START_RE = /^(?:after|from|post)\s+(\d{1,2}(?:[:.]?\d{2})?\s*(?:[ap]m)?)\s*[:,\-\u2013]?\s*(.+)$/i;
+  const END_RE = /^(.+?)\s*(?:until|till|before)\s+(\d{1,2}(?:[:.]?\d{2})?\s*(?:[ap]m)?)\s*$/i;
+
+  function parseClock(value) {
+    const match = String(value).trim().match(/^(\d{1,2})(?:[:.]?(\d{2}))?\s*([ap]m)?$/i);
+    if (!match || (match[2] === undefined && !match[3])) return null;
+    let hour = Number(match[1]);
+    const minute = match[2] ? Number(match[2]) : 0;
+    if (match[3]) {
+      if (hour < 1 || hour > 12) return null;
+      hour = (hour % 12) + (match[3].toLowerCase() === 'pm' ? 12 : 0);
+    }
+    return hour < 24 && minute < 60 ? hour * 60 + minute : null;
+  }
+
+  function rotaMinute(value) {
+    const start = (Number(config.dayStartHour) || 8) * 60;
+    return value < start ? value + 1440 : value;
+  }
+
+  function coverSegments(value) {
+    const raw = safeText(value);
+    if (coverCache.has(raw)) return coverCache.get(raw);
+    let segments = [];
+    let ok = true;
+    let nextFrom = -Infinity;
+    raw.split('/').map((part) => part.trim()).filter(Boolean).forEach((part) => {
+      if (!ok) return;
+      let match = part.match(START_RE);
+      if (match) {
+        const time = parseClock(match[1]);
+        if (time === null) { ok = false; return; }
+        segments.push({ name: match[2].trim(), from: rotaMinute(time) });
+        nextFrom = -Infinity;
+        return;
+      }
+      match = part.match(END_RE);
+      if (match) {
+        const time = parseClock(match[2]);
+        if (time === null) { ok = false; return; }
+        segments.push({ name: match[1].trim(), from: nextFrom });
+        nextFrom = rotaMinute(time);
+        return;
+      }
+      if (segments.length && nextFrom === -Infinity) { ok = false; return; }
+      segments.push({ name: part, from: nextFrom });
+      nextFrom = -Infinity;
+    });
+    if (!ok || segments.length < 2 || segments[0]?.from !== -Infinity) segments = [{ name: raw, from: -Infinity }];
+    else segments.sort((a, b) => a.from - b.from);
+    coverCache.set(raw, segments);
+    return segments;
+  }
+
+  function displayTime(value) { return `${String(Math.floor((value % 1440) / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`; }
+
+  function coverAt(value, minute) {
+    const segments = coverSegments(value);
+    let selected = segments[0];
+    for (const segment of segments) if (segment.from <= minute) selected = segment;
+    return selected?.name || '';
+  }
+
   function namesHtml(value) {
     const safe = safeText(value);
     if (!safe) return '<span class="role-empty">No entry</span>';
-    const clean = escapeHtml(safe);
-    const split = safe.match(/^(.*?)\s*\/\s*after\s+1\s*pm\s+(.*)$/i);
-    if (!split) return clean;
-    return `${escapeHtml(split[1].trim())}<span class="handover-note">After 1 pm: ${escapeHtml(split[2].trim())}</span>`;
+    const segments = coverSegments(safe);
+    if (segments.length === 1) return escapeHtml(safe);
+    return segments.map((segment, index) => {
+      const timing = index === 0 ? `Until ${displayTime(segments[index + 1].from)}` : `From ${displayTime(segment.from)}`;
+      return `<span class="cover-part"><span class="handover-note">${timing}</span>${escapeHtml(segment.name)}</span>`;
+    }).join('<span class="cover-separator" aria-hidden="true"> · </span>');
   }
 
   function escapeHtml(value) {
     return String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
   }
 
-  function cardHtml(trust, day, collapsed, compact = false) {
+  function activeAssignments(trust, day, minute) {
+    const dayStart = (Number(config.dayStartHour) || 8) * 60;
+    const nightStart = (Number(config.nightStartHour) || 17) * 60;
+    const sourceDay = minute < dayStart ? addDays(day, -1) : day;
+    const row = findOnDate(trust, sourceDay);
+    if (!row) return null;
+    const slot = minute >= dayStart && minute < nightStart ? 'day' : 'night';
+    const timeInRotaDay = minute < dayStart ? minute + 1440 : minute;
+    const choose = (roles) => {
+      const split = roles.filter((role) => /\b(day|night)\b/i.test(role.label));
+      const selected = split.length ? split.filter((role) => new RegExp(`\\b${slot}\\b`, 'i').test(role.label)) : roles;
+      return selected.map((role) => ({ label: role.label, value: coverAt(role.value, timeInRotaDay) })).filter((role) => safeText(role.value));
+    };
+    return [...choose(row.consultants), ...choose(row.registrars)];
+  }
+
+  function findNextHandover(trust, clock) {
+    const current = activeAssignments(trust, clock.day, clock.minute);
+    if (!current) return { current: [], next: null, ended: true };
+    const roleKey = (label) => label.replace(/\s+(day|night)$/i, '');
+    const baseline = new Map(current.map((role) => [roleKey(role.label), role]));
+    const maxMinutes = 7 * 24 * 60;
+    for (let offset = 1; offset <= maxMinutes; offset += 1) {
+      const total = clock.minute + offset;
+      const day = addDays(clock.day, Math.floor(total / 1440));
+      const minute = total % 1440;
+      const next = activeAssignments(trust, day, minute);
+      if (!next) return { current, next: null, ended: true };
+      const nextByLabel = new Map(next.map((role) => [roleKey(role.label), role]));
+      const labels = [...new Set([...baseline.keys(), ...nextByLabel.keys()])];
+      const changed = labels.filter((label) => baseline.get(label)?.value !== nextByLabel.get(label)?.value).map((label) => {
+        const role = nextByLabel.get(label) || baseline.get(label);
+        return { label: role.label.replace(/\s+(day|night)$/i, ''), value: nextByLabel.get(label)?.value || '' };
+      });
+      if (changed.length) {
+        return { current, next, changed, unchanged: labels.filter((label) => !changed.some((role) => role.label === label)), at: { day, minute }, ended: false };
+      }
+    }
+    return { current, next: null, ended: false };
+  }
+
+  function handoverWhen(at, today) {
+    const time = displayTime(at.minute);
+    if (at.day === today) return `${time} today`;
+    if (at.day === addDays(today, 1)) return `${time} tomorrow`;
+    return `${time} · ${shortDate(at.day)}`;
+  }
+
+  function currentSnapshotHtml(trust, snapshot, today) {
+    if (!snapshot?.current?.length) return '<div class="current-snapshot"><p class="snapshot-heading">Current cover</p><span class="role-empty">No current rota entry found.</span></div>';
+    const minute = londonClock().minute;
+    const dayStart = (Number(config.dayStartHour) || 8) * 60;
+    const nightStart = (Number(config.nightStartHour) || 17) * 60;
+    const shift = minute >= dayStart && minute < nightStart ? 'Day cover' : 'Night cover';
+    const roles = snapshot.current.map((role) => `<p class="snapshot-role"><strong>${escapeHtml(role.label)}:</strong> ${namesHtml(role.value)}</p>`).join('');
+    let handover = '';
+    if (snapshot.changed?.length) {
+      const changed = snapshot.changed.map((role) => `<span><strong>${escapeHtml(role.label)}:</strong> ${role.value ? namesHtml(role.value) : '<span class="role-empty">No entry</span>'}</span>`).join('');
+      const unchanged = snapshot.unchanged?.length ? `<span><strong>Unchanged:</strong> ${snapshot.unchanged.map(escapeHtml).join(', ')}</span>` : '';
+      handover = `<div class="handover-card"><span><strong>Next handover · ${escapeHtml(handoverWhen(snapshot.at, today))}</strong></span>${changed}${unchanged}</div>`;
+    } else {
+      const message = snapshot.ended ? 'No further rota entry found.' : 'No change found in the next 7 days.';
+      handover = `<div class="handover-card"><span><strong>Next handover</strong></span><span>${message}</span></div>`;
+    }
+    return `<div class="current-snapshot"><div class="snapshot-heading"><span>${shift}</span><time>${displayTime(minute)}</time></div><div class="snapshot-roles">${roles}</div>${handover}</div>`;
+  }
+
+  function glanceText(snapshot, day) {
+    if (!snapshot?.current?.length) return dateLabel(day);
+    return snapshot.current.map((role) => `${role.label.replace('Registrar', 'Reg.')}: ${role.value}`).join(' · ');
+  }
+
+  function cardHtml(trust, day, collapsed, compact = false, currentSnapshot = null) {
     const definition = trustConfig[trust] || {};
     const data = findOnDate(trust, day);
     const status = loadState[trust];
@@ -304,15 +472,17 @@
     } else if (status === 'error' && !data) {
       body = `<div class="no-source"><span class="no-source-icon" aria-hidden="true">!</span><span>${escapeHtml(messages[trust] || 'Rota unavailable.')}</span></div>`;
     } else if (!data) {
-      body = `<div class="no-source"><span class="no-source-icon" aria-hidden="true">i</span><span>No rota entry was found for this date.</span></div>`;
+      body = currentSnapshot?.current?.length
+        ? `${currentSnapshotHtml(trust, currentSnapshot, todayKey())}<div class="no-source"><span class="no-source-icon" aria-hidden="true">i</span><span>No rota entry was found for today.</span></div>`
+        : `<div class="no-source"><span class="no-source-icon" aria-hidden="true">i</span><span>No rota entry was found for this date.</span></div>`;
     } else {
       const roles = [...data.consultants, ...data.registrars];
-      body = `<div class="role-grid">${roles.map((role) => `<div class="role-card"><p class="role-label">${escapeHtml(role.label)}</p><p class="role-name">${namesHtml(role.value)}</p></div>`).join('') || '<div class="role-card"><p class="role-name role-empty">No on-call columns found.</p></div>'}</div>`;
+      body = `${currentSnapshot ? currentSnapshotHtml(trust, currentSnapshot, todayKey()) + '<p class="full-rota-label">Full rota today</p>' : ''}<div class="role-grid">${roles.map((role) => `<div class="role-card"><p class="role-label">${escapeHtml(role.label)}</p><p class="role-name">${namesHtml(role.value)}</p></div>`).join('') || '<div class="role-card"><p class="role-name role-empty">No on-call columns found.</p></div>'}</div>`;
     }
     return `<article class="trust-card${collapsed ? ' is-collapsed' : ''}" data-trust="${trust}">
       <button class="trust-toggle" type="button" aria-expanded="${!collapsed}" aria-controls="${headingId}-body">
         <span class="trust-emblem" aria-hidden="true">${escapeHtml(title)}</span>
-        <span class="trust-title-wrap"><span id="${headingId}" class="trust-title">${escapeHtml(definition.label || trust)}</span><span class="trust-summary">${escapeHtml(dateLabel(day))}</span></span>
+        <span class="trust-title-wrap"><span id="${headingId}" class="trust-title">${escapeHtml(definition.label || trust)}</span><span class="trust-summary">${escapeHtml(currentSnapshot ? glanceText(currentSnapshot, day) : dateLabel(day))}</span></span>
         <span class="trust-chevron" aria-hidden="true">⌄</span>
       </button>
       <div id="${headingId}-body" class="trust-body">${body}</div>
@@ -320,51 +490,98 @@
   }
 
   function renderNow() {
-    const day = todayKey();
+    const clock = londonClock();
+    const day = clock.day;
     ui.currentDate.textContent = dateLabel(day);
     const errors = trustOrder.filter((trust) => loadState[trust] === 'error').map((trust) => `${trust}: ${messages[trust]}`);
     const errorHtml = errors.length ? `<div class="error-banner">${errors.map(escapeHtml).join('<br>')}</div>` : '';
     const hasAny = trustOrder.some((trust) => findOnDate(trust, day));
     const order = getTrustOrder();
     const initial = getInitialExpanded();
-    ui.nowList.innerHTML = `${errorHtml}${!hasAny && trustOrder.every((trust) => loadState[trust] === 'fresh' || loadState[trust] === 'cached') ? '<div class="empty-day"><strong>No rota entries found for today</strong>Check the coming-month view or refresh the published sheets.</div>' : ''}${order.map((trust) => cardHtml(trust, day, trust !== initial)).join('')}`;
+    const snapshots = Object.fromEntries(trustOrder.map((trust) => [trust, findNextHandover(trust, clock)]));
+    const hasCurrent = Object.values(snapshots).some((snapshot) => snapshot.current.length);
+    ui.nowList.innerHTML = `${errorHtml}${!hasAny && !hasCurrent && trustOrder.every((trust) => loadState[trust] === 'fresh' || loadState[trust] === 'cached') ? '<div class="empty-day"><strong>No rota entries found for today</strong>Check the coming-month view or refresh the published sheets.</div>' : ''}${order.map((trust) => cardHtml(trust, day, trust !== initial, false, snapshots[trust])).join('')}`;
     bindCardToggles(ui.nowList);
   }
 
   function renderMonth() {
     const start = todayKey();
-    const days = Math.max(1, Number(config.dateLookaheadDays) || 90);
-    const end = addDays(start, days);
+    const end = lookaheadEnd(start);
     ui.monthTitle.textContent = 'Coming month';
     const query = ui.search.value.trim().toLocaleLowerCase('en-GB');
     ui.clearSearch.hidden = !query;
     const order = getTrustOrder();
     const initial = getInitialExpanded();
     const matchingDays = [];
-    for (let offset = 0; offset <= days; offset += 1) {
-      const day = addDays(start, offset);
-      if (!query || dayMatchesSearch(day, query)) matchingDays.push(day);
+    for (let day = start; day <= end; day = addDays(day, 1)) {
+      if (!query || dayMatchesSearch(day, query, start)) matchingDays.push(day);
     }
     const queryChanged = query !== lastMonthQuery;
+    if (queryChanged) showAllSearchResults = false;
     if (query && queryChanged && matchingDays.length) selectedMonthDate = matchingDays[0];
     lastMonthQuery = query;
     if (!selectedMonthDate || selectedMonthDate < start || selectedMonthDate > end) selectedMonthDate = matchingDays[0] || start;
     if (!visibleMonthStart || (query && queryChanged && matchingDays.length)) visibleMonthStart = monthStart(selectedMonthDate);
+    if (query) renderSearchResults(query, matchingDays);
+    else { ui.searchResults.hidden = true; ui.searchResults.innerHTML = ''; }
     ui.monthCaption.textContent = query
       ? (matchingDays.length ? `${matchingDays.length} matching date${matchingDays.length === 1 ? '' : 's'} · tap a date to see the rota` : 'No dates match your search')
-      : `Browse the next ${Math.ceil(days / 30)} months · tap a date to see the rota`;
+      : `Browse the next ${lookaheadMonths(start, end)} months · tap a date to see the rota`;
     renderMonthGrid(start, end, visibleMonthStart, query, matchingDays);
     ui.selectedDateTitle.textContent = dateLabel(selectedMonthDate);
     ui.monthList.innerHTML = order.map((trust) => cardHtml(trust, selectedMonthDate, trust !== initial, true)).join('');
     bindCardToggles(ui.monthList);
   }
 
-  function dayMatchesSearch(day, query) {
+  function dayMatchesSearch(day, query, start) {
+    if (query === 'today') return day === start;
+    if (query === 'tomorrow') return day === addDays(start, 1);
+    if (dateKey(query) === day) return true;
+    const shortNumeric = query.match(/^(\d{1,2})[/-](\d{1,2})$/);
+    if (shortNumeric) {
+      const date = keyToDate(day);
+      return date.getUTCDate() === Number(shortNumeric[1]) && date.getUTCMonth() + 1 === Number(shortNumeric[2]);
+    }
     const text = `${dateLabel(day)} ${trustOrder.map((trust) => {
       const row = findOnDate(trust, day);
       return [...(row?.consultants || []), ...(row?.registrars || [])].map((role) => `${role.label} ${role.value}`).join(' ');
     }).join(' ')}`.toLocaleLowerCase('en-GB');
-    return text.includes(query);
+    return text.includes(query) || query.split(/\s+/).every((term) => text.includes(term));
+  }
+
+  function highlightMatch(value, query) {
+    const text = String(value || '');
+    const terms = query.trim().split(/\s+/).filter(Boolean).sort((a, b) => b.length - a.length);
+    if (!terms.length) return escapeHtml(text);
+    const pattern = new RegExp(`(${terms.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
+    return text.split(pattern).map((part) => terms.some((term) => part.toLocaleLowerCase('en-GB') === term.toLocaleLowerCase('en-GB')) ? `<mark>${escapeHtml(part)}</mark>` : escapeHtml(part)).join('');
+  }
+
+  function renderSearchResults(query, matchingDays) {
+    ui.searchResults.hidden = false;
+    const daysWithRota = matchingDays.filter((day) => trustOrder.some((trust) => findOnDate(trust, day)));
+    const shown = showAllSearchResults ? daysWithRota : daysWithRota.slice(0, 12);
+    const rows = shown.map((day) => {
+      const weekend = [0, 6].includes(keyToDate(day).getUTCDay());
+      const summaries = getTrustOrder().map((trust) => {
+        const row = findOnDate(trust, day);
+        if (!row) return '';
+        const matches = [...row.consultants, ...row.registrars].filter((role) => safeText(role.value));
+        if (!matches.length) return '';
+        return `<span class="search-trust"><strong>${escapeHtml(trust)}:</strong> ${matches.map((role) => `${escapeHtml(role.label)} ${highlightMatch(role.value, query)}`).join(' · ')}</span>`;
+      }).filter(Boolean).join(' ');
+      return `<button class="search-result${weekend ? ' is-weekend' : ''}" type="button" data-search-date="${day}"><span class="search-result-date">${highlightMatch(`${weekday(day)} ${shortDate(day)}`, query)}</span><span class="search-result-roles">${summaries || '<span class="role-empty">Rota entry</span>'}</span></button>`;
+    }).join('');
+    const more = daysWithRota.length > shown.length ? `<button class="search-result-more" type="button" id="show-all-results">Show all ${daysWithRota.length} matching dates</button>` : '';
+    ui.searchResults.innerHTML = `<p class="search-result-count">${daysWithRota.length} rota match${daysWithRota.length === 1 ? '' : 'es'}${matchingDays.length !== daysWithRota.length ? ` · ${matchingDays.length} matching date${matchingDays.length === 1 ? '' : 's'}` : ''}</p>${rows || '<p class="no-results">No matching rota entries found.</p>'}${more}`;
+    ui.searchResults.querySelectorAll('[data-search-date]').forEach((button) => {
+      button.addEventListener('click', () => {
+        selectedMonthDate = button.dataset.searchDate;
+        visibleMonthStart = monthStart(selectedMonthDate);
+        renderMonth();
+      });
+    });
+    ui.searchResults.querySelector('#show-all-results')?.addEventListener('click', () => { showAllSearchResults = true; renderMonth(); });
   }
 
   function renderMonthGrid(rangeStart, rangeEnd, month, query, matchingDays) {
@@ -387,6 +604,7 @@
       const rowExists = trustOrder.some((trust) => findOnDate(trust, day));
       const selected = day === selectedMonthDate;
       const classes = ['calendar-day'];
+      if ([0, 6].includes(keyToDate(day).getUTCDay())) classes.push('is-weekend');
       if (!insideMonth) classes.push('is-outside');
       else if (!insideRange) classes.push('is-unavailable');
       if (selected) classes.push('is-selected');
@@ -412,7 +630,7 @@
 
   function navigateMonth(amount) {
     const start = todayKey();
-    const end = addDays(start, Math.max(1, Number(config.dateLookaheadDays) || 90));
+    const end = lookaheadEnd(start);
     visibleMonthStart = shiftMonth(visibleMonthStart, amount);
     selectedMonthDate = visibleMonthStart < start ? start : visibleMonthStart > end ? end : visibleMonthStart;
     renderMonth();
@@ -472,6 +690,30 @@
   ui.footerRefresh.addEventListener('click', refreshData);
   ui.search.addEventListener('input', renderMonth);
   ui.clearSearch.addEventListener('click', () => { ui.search.value = ''; renderMonth(); ui.search.focus(); });
+  const themes = ['auto', 'light', 'dark'];
+  let theme = 'auto';
+  try { theme = themes.includes(localStorage.getItem('oncall:theme')) ? localStorage.getItem('oncall:theme') : 'auto'; } catch {}
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  const systemDark = window.matchMedia?.('(prefers-color-scheme: dark)');
+  function syncThemeMeta() {
+    if (!themeMeta) return;
+    const dark = theme === 'dark' || (theme === 'auto' && systemDark?.matches);
+    themeMeta.content = dark ? '#0d1215' : '#1c2327';
+  }
+  function setTheme(value) {
+    theme = value;
+    if (theme === 'auto') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.dataset.theme = theme;
+    const label = theme[0].toUpperCase() + theme.slice(1);
+    ui.theme.textContent = label;
+    ui.theme.setAttribute('aria-label', `Colour theme: ${label}. Activate to change.`);
+    ui.theme.title = `Colour theme: ${label}`;
+    try { localStorage.setItem('oncall:theme', theme); } catch {}
+    syncThemeMeta();
+  }
+  setTheme(theme);
+  ui.theme.addEventListener('click', () => setTheme(themes[(themes.indexOf(theme) + 1) % themes.length]));
+  systemDark?.addEventListener?.('change', () => { if (theme === 'auto') syncThemeMeta(); });
   window.addEventListener('online', () => { ui.network.textContent = 'Back online'; refreshData(); });
   window.addEventListener('offline', updateFreshness);
   window.addEventListener('focus', () => {
@@ -500,4 +742,5 @@
   setView(savedQuery === 'month' ? 'month' : 'now');
   render();
   refreshData();
+  window.setInterval(renderNow, 60000);
 })();
