@@ -1,16 +1,27 @@
 {
   "id": "./",
-  "name": "On-call rota",
-  "short_name": "On call",
-  "description": "Current and upcoming hospital on-call rotas.",
+  "name": "UHB ENT On Call",
+  "short_name": "ENT On Call",
+  "description": "Current and upcoming UHB ENT on-call rotas.",
   "lang": "en-GB",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#f4f8fb",
-  "theme_color": "#102a43",
+  "background_color": "#0f1517",
+  "theme_color": "#0f1517",
   "icons": [
-    { "src": "./assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
   ]
 }
