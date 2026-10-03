@@ -570,7 +570,7 @@
     let handover = '';
     if (snapshot.changed?.length) {
       const changed = snapshot.changed.map((role) => `<span><strong>${escapeHtml(role.label)}:</strong> ${role.value ? namesHtml(role.value) : '<span class="role-empty">No entry</span>'}</span>`).join('');
-      const unchanged = snapshot.unchanged?.length ? `<span><strong>Unchanged:</strong> ${snapshot.unchanged.map(escapeHtml).join(', ')}</span>` : '';
+      const unchanged = snapshot.unchanged?.map((label) => `<span><strong>${escapeHtml(label)}:</strong> <span class="role-empty">Unchanged</span></span>`).join('') || '';
       handover = `<div class="handover-card"><span><strong>Next handover · ${escapeHtml(handoverWhen(snapshot.at, today))}</strong></span>${changed}${unchanged}</div>`;
     } else {
       const message = snapshot.ended ? 'No further rota entry found.' : 'No change found in the next 7 days.';
