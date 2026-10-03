@@ -89,8 +89,16 @@
             <div id="month-date-grid" class="calendar-grid" role="group" aria-label="Select a date"></div>
           </div>
           <section class="selected-day" aria-live="polite">
-            <h3 id="selected-date-title" class="selected-date-title"></h3>
+            <div class="selected-date-nav">
+              <button id="previous-date" class="calendar-nav-button" type="button" aria-label="Previous date">‹</button>
+              <h3 id="selected-date-title" class="selected-date-title"></h3>
+              <button id="next-date" class="calendar-nav-button" type="button" aria-label="Next date">›</button>
+            </div>
             <div id="month-rota-list" class="month-rota-list"></div>
+            <section class="next-days">
+              <button id="next-days-toggle" class="next-days-toggle" type="button" aria-expanded="false" aria-controls="next-days-list">Next 30 days<span class="trust-chevron" aria-hidden="true">⌄</span></button>
+              <div id="next-days-list" class="next-days-list" hidden></div>
+            </section>
           </section>
         </section>
       </main>
