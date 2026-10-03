@@ -119,6 +119,7 @@ h2 { margin-bottom: 0; color: var(--navy); font-size: 23px; line-height: 1.2; }
 .role-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .role-card { min-width: 0; border: 1px solid var(--line); border-radius: 13px; padding: 12px 13px; background: var(--surface-soft); }
 .role-label { margin-bottom: 7px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.role-period { display: block; margin-top: 3px; color: var(--muted); font-family: var(--mono); font-size: 10px; font-weight: 400; letter-spacing: 0; }
 .role-name { margin-bottom: 0; color: var(--ink); font-family: var(--serif); font-size: 18px; font-weight: 400; line-height: 1.25; overflow-wrap: anywhere; }
 .role-empty { color: var(--muted); font-size: 13px; font-weight: 500; }
 .handover-note { display: block; margin-top: 5px; color: var(--ink-soft); font-size: 11px; font-weight: 500; }
@@ -173,16 +174,32 @@ mark { border-radius: 3px; padding: 0 2px; background: #edf3ee; color: var(--ink
 .current-snapshot { margin: 0 0 17px; border-radius: 13px; padding: 13px; background: var(--tint); }
 .snapshot-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; color: var(--teal-dark); font-size: 12px; font-weight: 700; }
 .snapshot-heading time { color: var(--muted); font-family: var(--mono); font-size: 11px; font-weight: 400; }
-.snapshot-roles { display: flex; flex-wrap: wrap; gap: 6px 16px; }
-.snapshot-role { margin: 0; color: var(--ink); font-size: 13px; }
-.snapshot-role strong { color: var(--muted); font-size: 11px; font-weight: 500; }
+.snapshot-roles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.snapshot-role { min-width: 0; margin: 0; border-radius: 10px; padding: 10px; background: var(--paper); }
+.snapshot-role-label { margin: 0 0 3px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.snapshot-role-name { margin: 0; color: var(--ink); font-family: var(--serif); font-size: 18px; line-height: 1.2; overflow-wrap: anywhere; }
+.snapshot-role-until { margin: 5px 0 0; color: var(--teal-dark); font-size: 11px; }
 .handover-card { display: grid; gap: 3px; margin-top: 11px; border-top: 1px solid var(--line); padding-top: 9px; color: var(--ink-soft); font-size: 11px; }
 .handover-card strong { color: var(--ink); font-weight: 700; }
 .full-rota-label { margin: 0 0 9px; color: var(--muted); font-family: var(--mono); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
 .trust-glance { display: block; margin-top: 4px; color: var(--ink-soft); font-size: 11px; font-weight: 400; }
 .selected-day { margin-top: 20px; }
-.selected-date-title { margin: 0 0 10px; color: var(--navy); font-family: Manrope, sans-serif; font-size: 17px; font-weight: 800; letter-spacing: -.025em; }
+.selected-date-nav { display: flex; align-items: center; gap: 11px; margin-bottom: 10px; }
+.selected-date-title { flex: 1; margin: 0; color: var(--navy); font-family: Manrope, sans-serif; font-size: 17px; font-weight: 800; letter-spacing: -.025em; }
+.selected-date-nav .calendar-nav-button { flex: 0 0 32px; }
 .month-rota-list { display: grid; gap: 11px; }
+.next-days { margin-top: 15px; border-top: 1px solid var(--line); }
+.next-days-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; border: 0; padding: 14px 1px 10px; background: transparent; color: var(--navy); text-align: left; font-family: var(--serif); font-size: 17px; font-weight: 600; cursor: pointer; }
+.next-days-toggle .trust-chevron { transition: transform .18s ease; }
+.next-days-toggle.is-open .trust-chevron { transform: rotate(180deg); }
+.next-days-list { display: grid; gap: 6px; }
+.next-days-row { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 10px; align-items: start; width: 100%; border: 1px solid var(--line); border-radius: 11px; padding: 10px; background: var(--paper); text-align: left; cursor: pointer; }
+.next-days-row:hover, .next-days-row.is-selected { border-color: var(--teal); }
+.next-days-row.is-weekend { background: var(--weekend); }
+.next-days-date { color: var(--ink-soft); font-family: var(--mono); font-size: 11px; }
+.next-days-sites { display: grid; gap: 4px; min-width: 0; color: var(--ink-soft); font-size: 11px; overflow-wrap: anywhere; }
+.next-days-site { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 5px; }
+.next-days-site strong { color: var(--ink); }
 .no-results { padding: 28px 16px; border: 1px dashed #cfdae2; border-radius: 14px; color: var(--ink-soft); text-align: center; font-size: 13px; }
 
 .footer { width: min(100% - 40px, 920px); display: flex; justify-content: space-between; gap: 12px; margin: 0 auto; border-top: 1px solid var(--line); padding: 15px 0 25px; color: var(--muted); font-size: 11px; }
@@ -204,12 +221,17 @@ mark { border-radius: 3px; padding: 0 2px; background: #edf3ee; color: var(--ink
   .trust-toggle { padding: 14px; }
   .trust-body { padding: 13px 14px 15px; }
   .role-grid { gap: 8px; }
+  .snapshot-roles { gap: 7px; }
+  .snapshot-role { padding: 8px; }
+  .snapshot-role-name { font-size: 15px; }
   .role-card { padding: 10px; }
   .role-name { font-size: 14px; }
   .month-heading { align-items: stretch; flex-direction: column; }
   .search-box { width: 100%; }
   .search-result { grid-template-columns: 68px minmax(0, 1fr); gap: 7px; padding: 8px; }
   .search-result-roles { font-size: 11px; }
+  .next-days-row { grid-template-columns: 68px minmax(0, 1fr); gap: 7px; padding: 8px; }
+  .next-days-sites { font-size: 10px; }
   .month-calendar { padding: 9px; }
   .calendar-weekdays, .calendar-grid { gap: 4px; }
   .calendar-day { border-radius: 9px; font-size: 12px; }
