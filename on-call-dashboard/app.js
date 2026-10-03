@@ -17,6 +17,7 @@
   let lastMonthQuery = '';
   let showAllSearchResults = false;
   let nextDaysOpen = false;
+  let searchOpen = false;
   let liveSnapshots = {};
 
   const $ = (id) => document.getElementById(id);
@@ -28,8 +29,10 @@
     previousDate: $('previous-date'), nextDate: $('next-date'), nextDaysToggle: $('next-days-toggle'), nextDaysList: $('next-days-list'),
     calendarMonthLabel: $('calendar-month-label'), previousMonth: $('previous-month'), nextMonth: $('next-month'),
     nowTab: $('now-tab'), monthTab: $('month-tab'), nowView: $('now-view'), monthView: $('month-view'),
-    search: $('search-input'), clearSearch: $('clear-search'), searchResults: $('search-results'), refresh: $('refresh-button'),
-    footerRefresh: $('footer-refresh'), install: $('install-button'), theme: $('theme-button')
+    search: $('search-input'), searchToggle: $('search-toggle'), searchPanel: $('search-panel'), clearSearch: $('clear-search'), searchResults: $('search-results'), refresh: $('refresh-button'),
+    footerRefresh: $('footer-refresh'), install: $('install-button'), theme: $('theme-button'), settings: $('settings-button'), settingsDialog: $('settings-dialog'),
+    closeSettings: $('close-settings'), cancelSettings: $('cancel-settings'), saveSettings: $('save-settings'), firstSiteSetting: $('first-site-setting'),
+    qeOpenSetting: $('qe-open-setting'), hgsOpenSetting: $('hgs-open-setting')
   };
 
   const dateFmt = new Intl.DateTimeFormat('en-GB', { timeZone: config.dateTimeZone || 'Europe/London', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -472,7 +475,8 @@
 
   function glanceText(snapshot, day) {
     if (!snapshot?.current?.length) return dateLabel(day);
-    return snapshot.current.map((role) => `${role.label.replace('Registrar', 'Reg.')}: ${role.value}`).join(' · ');
+    const group = (label) => /registrar|\bspr\b|\breg\b|\bst[1-8]\b/i.test(label) ? 1 : 0;
+    return [...snapshot.current].sort((a, b) => group(a.label) - group(b.label)).map((role) => `${role.label.replace('Registrar', 'Reg.')}: ${role.value}`).join(' · ');
   }
 
   function cardHtml(trust, day, collapsed, compact = false, currentSnapshot = null) {
@@ -518,11 +522,10 @@
     const errorHtml = errors.length ? `<div class="error-banner">${errors.map(escapeHtml).join('<br>')}</div>` : '';
     const hasAny = trustOrder.some((trust) => findOnDate(trust, day));
     const order = getTrustOrder();
-    const initial = getInitialExpanded();
     const snapshots = Object.fromEntries(trustOrder.map((trust) => [trust, findNextHandover(trust, clock)]));
     liveSnapshots = snapshots;
     const hasCurrent = Object.values(snapshots).some((snapshot) => snapshot.current.length);
-    ui.nowList.innerHTML = `${errorHtml}${!hasAny && !hasCurrent && trustOrder.every((trust) => loadState[trust] === 'fresh' || loadState[trust] === 'cached') ? '<div class="empty-day"><strong>No rota entries found for today</strong>Check the coming-month view or refresh the published sheets.</div>' : ''}${order.map((trust) => cardHtml(trust, day, trust !== initial, false, snapshots[trust])).join('')}`;
+    ui.nowList.innerHTML = `${errorHtml}${!hasAny && !hasCurrent && trustOrder.every((trust) => loadState[trust] === 'fresh' || loadState[trust] === 'cached') ? '<div class="empty-day"><strong>No rota entries found for today</strong>Check the coming-month view or refresh the published sheets.</div>' : ''}${order.map((trust) => cardHtml(trust, day, !isInitiallyOpen(trust), false, snapshots[trust])).join('')}`;
     bindCardToggles(ui.nowList);
   }
 
@@ -532,6 +535,9 @@
     ui.monthTitle.textContent = 'Coming month';
     const query = ui.search.value.trim().toLocaleLowerCase('en-GB');
     ui.clearSearch.hidden = !query;
+    ui.searchPanel.hidden = !searchOpen;
+    ui.searchToggle.setAttribute('aria-expanded', String(searchOpen));
+    ui.searchToggle.classList.toggle('is-open', searchOpen);
     const order = getTrustOrder();
     const matchingDays = [];
     for (let day = start; day <= end; day = addDays(day, 1)) {
@@ -701,11 +707,51 @@
   }
 
   function getTrustOrder() {
-    const first = new URLSearchParams(window.location.search).get('first')?.toUpperCase();
+    const first = readDisplaySettings()?.first || queryFirstSite() || 'HGS';
     return first === 'QE' ? ['QE', 'HGS'] : ['HGS', 'QE'];
   }
 
-  function getInitialExpanded() { return getTrustOrder()[0]; }
+  function queryFirstSite() {
+    const first = new URLSearchParams(window.location.search).get('first')?.toUpperCase();
+    return first === 'QE' || first === 'HGS' ? first : null;
+  }
+
+  function readDisplaySettings() {
+    try {
+      const value = JSON.parse(localStorage.getItem('oncall:display-settings') || 'null');
+      if (!value || !['QE', 'HGS'].includes(value.first)) return null;
+      return { first: value.first, open: { QE: !!value.open?.QE, HGS: !!value.open?.HGS } };
+    } catch { return null; }
+  }
+
+  function isInitiallyOpen(trust) {
+    const saved = readDisplaySettings();
+    if (saved) return saved.open[trust];
+    return queryFirstSite() === trust;
+  }
+
+  function settingsDraft() {
+    const saved = readDisplaySettings();
+    if (saved) return saved;
+    const first = queryFirstSite() || 'HGS';
+    return { first, open: { QE: first === 'QE', HGS: first === 'HGS' } };
+  }
+
+  function openSettings() {
+    const draft = settingsDraft();
+    ui.firstSiteSetting.value = draft.first;
+    ui.qeOpenSetting.checked = draft.open.QE;
+    ui.hgsOpenSetting.checked = draft.open.HGS;
+    ui.settingsDialog.showModal();
+  }
+
+  function saveSettings() {
+    const value = { first: ui.firstSiteSetting.value, open: { QE: ui.qeOpenSetting.checked, HGS: ui.hgsOpenSetting.checked } };
+    try { localStorage.setItem('oncall:display-settings', JSON.stringify(value)); } catch {}
+    ui.settingsDialog.close();
+    renderNow();
+    renderMonth();
+  }
 
   function bindCardToggles(root) {
     root.querySelectorAll('.trust-toggle').forEach((button) => {
@@ -743,7 +789,7 @@
     ui.nowView.hidden = month; ui.monthView.hidden = !month;
     ui.nowTab.classList.toggle('is-active', !month); ui.monthTab.classList.toggle('is-active', month);
     ui.nowTab.setAttribute('aria-selected', String(!month)); ui.monthTab.setAttribute('aria-selected', String(month));
-    if (month) ui.search.focus({ preventScroll: true });
+    if (month && searchOpen) ui.search.focus({ preventScroll: true });
   }
 
   ui.nowTab.addEventListener('click', () => setView('now'));
@@ -753,10 +799,16 @@
   ui.previousDate.addEventListener('click', () => navigateDate(-1));
   ui.nextDate.addEventListener('click', () => navigateDate(1));
   ui.nextDaysToggle.addEventListener('click', () => { nextDaysOpen = !nextDaysOpen; renderMonth(); });
+  ui.searchToggle.addEventListener('click', () => { searchOpen = !searchOpen; renderMonth(); if (searchOpen) ui.search.focus({ preventScroll: true }); });
   ui.refresh.addEventListener('click', refreshData);
   ui.footerRefresh.addEventListener('click', refreshData);
   ui.search.addEventListener('input', renderMonth);
   ui.clearSearch.addEventListener('click', () => { ui.search.value = ''; renderMonth(); ui.search.focus(); });
+  ui.settings.addEventListener('click', openSettings);
+  ui.closeSettings.addEventListener('click', () => ui.settingsDialog.close());
+  ui.cancelSettings.addEventListener('click', () => ui.settingsDialog.close());
+  ui.saveSettings.addEventListener('click', saveSettings);
+  ui.settingsDialog.addEventListener('click', (event) => { if (event.target === ui.settingsDialog) ui.settingsDialog.close(); });
   const themes = ['auto', 'light', 'dark'];
   let theme = 'auto';
   try { theme = themes.includes(localStorage.getItem('oncall:theme')) ? localStorage.getItem('oncall:theme') : 'auto'; } catch {}
