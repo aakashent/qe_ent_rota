@@ -20,6 +20,7 @@
   let nextDaysOpen = false;
   let nextDaysSiteFilter = null;
   let dateSectionOpen = false;
+  let calendarPickerOpen = false;
   let liveSnapshots = {};
 
   const $ = (id) => document.getElementById(id);
@@ -29,7 +30,9 @@
     nowList: $('now-rota-list'), monthList: $('month-rota-list'), monthCaption: $('month-caption'),
     monthGrid: $('month-date-grid'), selectedDateTitle: $('selected-date-title'), dateSectionToggle: $('date-selection-toggle'), dateSectionContent: $('date-selection-content'),
     previousDate: $('previous-date'), nextDate: $('next-date'), nextDaysToggle: $('next-days-toggle'), nextDaysFilter: $('next-days-filter'), nextDaysList: $('next-days-list'),
-    calendarMonthLabel: $('calendar-month-label'), previousMonth: $('previous-month'), nextMonth: $('next-month'),
+    calendarMonthLabel: $('calendar-month-label'), calendarMonthText: $('calendar-month-text'), calendarPicker: $('calendar-month-picker'),
+    calendarYearSelect: $('calendar-year-select'), calendarMonthOptions: $('calendar-month-options'), calendarToday: $('calendar-today'), calendarPickerClose: $('calendar-picker-close'),
+    previousMonth: $('previous-month'), nextMonth: $('next-month'),
     nowTab: $('now-tab'), monthTab: $('month-tab'), nowView: $('now-view'), monthView: $('month-view'),
     search: $('search-input'), clearSearch: $('clear-search'), searchResults: $('search-results'), refresh: $('refresh-button'),
     footerRefresh: $('footer-refresh'), install: $('install-button'), theme: $('theme-button'), settings: $('settings-button'), settingsDialog: $('settings-dialog'),
@@ -582,6 +585,22 @@
     return [...snapshot.current].sort((a, b) => group(a.label) - group(b.label)).map((role) => `${role.label.replace('Registrar', 'Reg.')}: ${/^#N\/A$/i.test(safeText(role.value)) ? '—' : role.value}`).join(' · ');
   }
 
+  function collapsedSummaryHtml(trust, snapshot) {
+    const isRegistrar = (label) => /registrar|\bspr\b|\breg\b|\bst[1-8]\b/i.test(label);
+    const names = (registrar) => {
+      const values = (snapshot?.current || []).filter((role) => isRegistrar(role.label) === registrar).map((role) => {
+        const value = safeText(role.value);
+        return !value || /^#N\/A$/i.test(value) ? '—' : value;
+      });
+      return values.length ? values.join(' / ') : '—';
+    };
+    return `<span class="trust-collapsed-summary">
+      <span class="collapsed-site">${escapeHtml(trust)}</span>
+      <span class="collapsed-role"><span class="collapsed-role-label">Consultant</span><span class="collapsed-role-name">${escapeHtml(names(false))}</span></span>
+      <span class="collapsed-role"><span class="collapsed-role-label">Registrar</span><span class="collapsed-role-name">${escapeHtml(names(true))}</span></span>
+    </span>`;
+  }
+
   function cardHtml(trust, day, collapsed, compact = false, currentSnapshot = null) {
     const definition = trustConfig[trust] || {};
     const data = findOnDate(trust, day);
@@ -609,8 +628,9 @@
     }
     return `<article class="trust-card${collapsed ? ' is-collapsed' : ''}" data-trust="${trust}">
       <button class="trust-toggle" type="button" aria-expanded="${!collapsed}" aria-controls="${headingId}-body">
-        <span class="trust-emblem" aria-hidden="true">${escapeHtml(title)}</span>
-        <span class="trust-title-wrap"><span id="${headingId}" class="trust-title">${escapeHtml(definition.label || trust)}</span><span class="trust-summary">${escapeHtml(currentSnapshot ? glanceText(currentSnapshot, day) : dateLabel(day))}</span></span>
+        ${collapsedSummaryHtml(title, currentSnapshot)}
+        <span class="trust-header-primary"><span class="trust-emblem" aria-hidden="true">${escapeHtml(title)}</span>
+        <span class="trust-title-wrap"><span id="${headingId}" class="trust-title">${escapeHtml(definition.label || trust)}</span><span class="trust-summary">${escapeHtml(currentSnapshot ? glanceText(currentSnapshot, day) : dateLabel(day))}</span></span></span>
         <span class="trust-chevron" aria-hidden="true">⌄</span>
       </button>
       <div id="${headingId}-body" class="trust-body">${body}</div>
@@ -845,7 +865,10 @@
     const gridStart = addDays(month, -weekdayOffset);
     const gridEndOffset = 6 - ((keyToDate(lastDay).getUTCDay() + 6) % 7);
     const gridEnd = addDays(lastDay, gridEndOffset);
-    ui.calendarMonthLabel.textContent = monthFmt.format(keyToDate(month));
+    ui.calendarMonthText.textContent = monthFmt.format(keyToDate(month));
+    ui.calendarMonthLabel.setAttribute('aria-expanded', String(calendarPickerOpen));
+    ui.calendarPicker.hidden = !calendarPickerOpen;
+    renderCalendarMonthPicker(rangeStart, rangeEnd, month);
     const previousStart = shiftMonth(month, -1);
     const nextStart = shiftMonth(month, 1);
     ui.previousMonth.disabled = monthEnd(previousStart) < rangeStart;
@@ -885,11 +908,72 @@
     });
   }
 
+  function availableCalendarMonths(rangeStart, rangeEnd) {
+    const months = new Set();
+    trustOrder.forEach((trust) => records[trust].forEach((row) => {
+      if (row.date >= rangeStart && row.date <= rangeEnd) months.add(monthStart(row.date));
+    }));
+    return [...months].sort();
+  }
+
+  function renderCalendarMonthPicker(rangeStart, rangeEnd, visibleMonth) {
+    const available = availableCalendarMonths(rangeStart, rangeEnd);
+    const years = [...new Set(available.map((month) => month.slice(0, 4)))];
+    const visibleYear = visibleMonth.slice(0, 4);
+    const pickerYear = years.includes(visibleYear) ? visibleYear : (years[0] || visibleYear);
+    ui.calendarYearSelect.disabled = !years.length;
+    ui.calendarYearSelect.innerHTML = years.length
+      ? years.map((year) => `<option value="${year}"${year === pickerYear ? ' selected' : ''}>${year}</option>`).join('')
+      : '<option value="">No rota data</option>';
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const currentMonth = monthStart(todayKey());
+    ui.calendarMonthOptions.innerHTML = monthNames.map((name, index) => {
+      const key = `${pickerYear}-${String(index + 1).padStart(2, '0')}-01`;
+      const enabled = available.includes(key);
+      const classes = ['calendar-month-option'];
+      if (key === currentMonth) classes.push('is-current');
+      if (key === visibleMonth) classes.push('is-selected');
+      return `<button class="${classes.join(' ')}" type="button" data-picker-month="${key}"${key === currentMonth ? ' aria-current="date"' : ''}${enabled ? '' : ' disabled'}>${name}</button>`;
+    }).join('');
+  }
+
+  function navigateToMonth(month, rangeStart = todayKey(), rangeEnd = lookaheadEnd(rangeStart)) {
+    visibleMonthStart = month;
+    const dates = trustOrder.flatMap((trust) => records[trust].map((row) => row.date))
+      .filter((day) => day >= month && day < shiftMonth(month, 1) && day >= rangeStart && day <= rangeEnd).sort();
+    selectedMonthDate = dates[0] || (month < rangeStart ? rangeStart : month > rangeEnd ? rangeEnd : month);
+    calendarPickerOpen = false;
+    dateSectionOpen = true;
+    renderMonth();
+  }
+
+  function navigateToYear(year) {
+    const start = todayKey();
+    const end = lookaheadEnd(start);
+    const months = availableCalendarMonths(start, end).filter((month) => month.startsWith(`${year}-`));
+    if (months.length) {
+      visibleMonthStart = months[0];
+      const dates = trustOrder.flatMap((trust) => records[trust].map((row) => row.date))
+        .filter((day) => day >= months[0] && day < shiftMonth(months[0], 1) && day >= start && day <= end).sort();
+      selectedMonthDate = dates[0] || months[0];
+      dateSectionOpen = true;
+      calendarPickerOpen = true;
+      renderMonth();
+    }
+  }
+
+  function closeCalendarPicker() {
+    calendarPickerOpen = false;
+    ui.calendarPicker.hidden = true;
+    ui.calendarMonthLabel.setAttribute('aria-expanded', 'false');
+  }
+
   function navigateMonth(amount) {
     const start = todayKey();
     const end = lookaheadEnd(start);
     visibleMonthStart = shiftMonth(visibleMonthStart, amount);
     selectedMonthDate = visibleMonthStart < start ? start : visibleMonthStart > end ? end : visibleMonthStart;
+    calendarPickerOpen = false;
     dateSectionOpen = true;
     renderMonth();
   }
@@ -910,7 +994,7 @@
     const saved = readDisplaySettings();
     const queryFirst = queryFirstSite();
     const first = filter === 'HGS' || filter === 'QE' ? filter : saved?.first || queryFirst || 'HGS';
-    const open = saved?.open || { QE: queryFirst === 'QE', HGS: queryFirst === 'HGS' };
+    const open = saved?.open || { QE: false, HGS: false };
     const value = { first, open, lookaheadFilter: filter };
     nextDaysSiteFilter = filter;
     try { localStorage.setItem('oncall:display-settings', JSON.stringify(value)); } catch {}
@@ -934,15 +1018,14 @@
 
   function isInitiallyOpen(trust) {
     const saved = readDisplaySettings();
-    if (saved) return saved.open[trust];
-    return queryFirstSite() === trust;
+    return saved ? saved.open[trust] : false;
   }
 
   function settingsDraft() {
     const saved = readDisplaySettings();
     if (saved) return saved;
     const first = queryFirstSite() || 'HGS';
-    return { first, open: { QE: first === 'QE', HGS: first === 'HGS' }, lookaheadFilter: queryFirstSite() || 'BOTH' };
+    return { first, open: { QE: false, HGS: false }, lookaheadFilter: queryFirstSite() || 'BOTH' };
   }
 
   function openSettings() {
@@ -1007,6 +1090,24 @@
   ui.monthTab.addEventListener('click', () => setView('month'));
   ui.previousMonth.addEventListener('click', () => navigateMonth(-1));
   ui.nextMonth.addEventListener('click', () => navigateMonth(1));
+  ui.calendarMonthLabel.addEventListener('click', () => {
+    calendarPickerOpen = !calendarPickerOpen;
+    renderMonth();
+  });
+  ui.calendarYearSelect.addEventListener('change', () => navigateToYear(ui.calendarYearSelect.value));
+  ui.calendarMonthOptions.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-picker-month]:not(:disabled)');
+    if (button) navigateToMonth(button.dataset.pickerMonth);
+  });
+  ui.calendarToday.addEventListener('click', () => navigateToMonth(monthStart(todayKey())));
+  ui.calendarPickerClose.addEventListener('click', closeCalendarPicker);
+  document.addEventListener('click', (event) => {
+    if (!calendarPickerOpen || ui.calendarPicker.contains(event.target) || ui.calendarMonthLabel.contains(event.target)) return;
+    closeCalendarPicker();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && calendarPickerOpen) closeCalendarPicker();
+  });
   ui.previousDate.addEventListener('click', () => navigateDate(-1));
   ui.nextDate.addEventListener('click', () => navigateDate(1));
   ui.dateSectionToggle.addEventListener('click', () => { dateSectionOpen = !dateSectionOpen; renderMonth(); });
