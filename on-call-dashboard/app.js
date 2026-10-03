@@ -17,6 +17,7 @@
   let lastMonthQuery = '';
   let showAllSearchResults = false;
   let nextDaysOpen = false;
+  let selectedDayOpen = true;
   let searchOpen = false;
   let liveSnapshots = {};
 
@@ -25,7 +26,7 @@
     network: $('network-state'), updated: $('updated-label'), updatedPill: document.querySelector('.updated-pill'),
     todayLabel: $('today-label'), currentDate: $('current-date-heading'), monthTitle: $('month-title'),
     nowList: $('now-rota-list'), monthList: $('month-rota-list'), monthCaption: $('month-caption'),
-    monthGrid: $('month-date-grid'), selectedDateTitle: $('selected-date-title'),
+    monthGrid: $('month-date-grid'), selectedDateTitle: $('selected-date-title'), selectedDayToggle: $('selected-day-toggle'), selectedDayContent: $('selected-day-content'),
     previousDate: $('previous-date'), nextDate: $('next-date'), nextDaysToggle: $('next-days-toggle'), nextDaysList: $('next-days-list'),
     calendarMonthLabel: $('calendar-month-label'), previousMonth: $('previous-month'), nextMonth: $('next-month'),
     nowTab: $('now-tab'), monthTab: $('month-tab'), nowView: $('now-view'), monthView: $('month-view'),
@@ -545,9 +546,12 @@
     }
     const queryChanged = query !== lastMonthQuery;
     if (queryChanged) showAllSearchResults = false;
-    if (query && queryChanged && matchingDays.length) selectedMonthDate = matchingDays[0];
+    if (query && queryChanged && matchingDays.length) { selectedMonthDate = matchingDays[0]; selectedDayOpen = true; }
     lastMonthQuery = query;
     if (!selectedMonthDate || selectedMonthDate < start || selectedMonthDate > end) selectedMonthDate = matchingDays[0] || start;
+    ui.selectedDayToggle.setAttribute('aria-expanded', String(selectedDayOpen));
+    ui.selectedDayToggle.classList.toggle('is-open', selectedDayOpen);
+    ui.selectedDayContent.hidden = !selectedDayOpen;
     if (!visibleMonthStart || (query && queryChanged && matchingDays.length)) visibleMonthStart = monthStart(selectedMonthDate);
     if (query) renderSearchResults(query, matchingDays);
     else { ui.searchResults.hidden = true; ui.searchResults.innerHTML = ''; }
@@ -586,6 +590,7 @@
     ui.nextDaysList.querySelectorAll('[data-next-date]').forEach((button) => button.addEventListener('click', () => {
       selectedMonthDate = button.dataset.nextDate;
       visibleMonthStart = monthStart(selectedMonthDate);
+      selectedDayOpen = true;
       renderMonth();
       ui.selectedDateTitle.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }));
@@ -598,6 +603,7 @@
     if (target < start || target > end) return;
     selectedMonthDate = target;
     visibleMonthStart = monthStart(target);
+    selectedDayOpen = true;
     renderMonth();
   }
 
@@ -646,6 +652,7 @@
       button.addEventListener('click', () => {
         selectedMonthDate = button.dataset.searchDate;
         visibleMonthStart = monthStart(selectedMonthDate);
+        selectedDayOpen = true;
         renderMonth();
         ui.selectedDateTitle.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
@@ -692,6 +699,7 @@
       button.addEventListener('click', () => {
         selectedMonthDate = button.dataset.date;
         visibleMonthStart = monthStart(selectedMonthDate);
+        selectedDayOpen = true;
         renderMonth();
         ui.selectedDateTitle.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
@@ -703,6 +711,7 @@
     const end = lookaheadEnd(start);
     visibleMonthStart = shiftMonth(visibleMonthStart, amount);
     selectedMonthDate = visibleMonthStart < start ? start : visibleMonthStart > end ? end : visibleMonthStart;
+    selectedDayOpen = true;
     renderMonth();
   }
 
@@ -798,6 +807,7 @@
   ui.nextMonth.addEventListener('click', () => navigateMonth(1));
   ui.previousDate.addEventListener('click', () => navigateDate(-1));
   ui.nextDate.addEventListener('click', () => navigateDate(1));
+  ui.selectedDayToggle.addEventListener('click', () => { selectedDayOpen = !selectedDayOpen; renderMonth(); });
   ui.nextDaysToggle.addEventListener('click', () => { nextDaysOpen = !nextDaysOpen; renderMonth(); });
   ui.searchToggle.addEventListener('click', () => { searchOpen = !searchOpen; renderMonth(); if (searchOpen) ui.search.focus({ preventScroll: true }); });
   ui.refresh.addEventListener('click', refreshData);
