@@ -29,6 +29,7 @@
         <div class="topbar-actions">
           <span id="network-state" class="network-state" aria-live="polite">Loading rota…</span>
           <button id="theme-button" class="theme-button" type="button" aria-label="Colour theme: Auto" title="Colour theme: Auto">Auto</button>
+          <button id="settings-button" class="theme-button" type="button" aria-haspopup="dialog">Settings</button>
           <button id="install-button" class="install-button" type="button" hidden>Install</button>
         </div>
       </header>
@@ -70,15 +71,18 @@
               <p class="eyebrow">PLAN AHEAD</p>
               <h2 id="month-title">Coming month</h2>
             </div>
+            <button id="search-toggle" class="search-toggle" type="button" aria-expanded="false" aria-controls="search-panel"><span aria-hidden="true">⌕</span> Search</button>
+          </div>
+          <p id="month-caption" class="month-caption">Tap a date to see who is on call</p>
+          <div id="search-panel" class="search-panel" hidden>
             <label class="search-box">
               <span class="sr-only">Search dates or names</span>
               <span class="search-icon" aria-hidden="true">⌕</span>
               <input id="search-input" type="search" placeholder="Search names or dates" autocomplete="off">
               <button id="clear-search" class="clear-search" type="button" aria-label="Clear search" hidden>×</button>
             </label>
+            <div id="search-results" class="search-results" aria-live="polite" hidden></div>
           </div>
-          <p id="month-caption" class="month-caption">Tap a date to see who is on call</p>
-          <div id="search-results" class="search-results" aria-live="polite" hidden></div>
           <div class="month-calendar" aria-label="Dates in the coming months">
             <div class="calendar-month-nav">
               <button id="previous-month" class="calendar-nav-button" type="button" aria-label="Previous month">‹</button>
@@ -88,6 +92,10 @@
             <div class="calendar-weekdays" aria-hidden="true"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
             <div id="month-date-grid" class="calendar-grid" role="group" aria-label="Select a date"></div>
           </div>
+          <section class="next-days">
+            <button id="next-days-toggle" class="next-days-toggle" type="button" aria-expanded="false" aria-controls="next-days-list">Next 30 days<span class="trust-chevron" aria-hidden="true">⌄</span></button>
+            <div id="next-days-list" class="next-days-list" hidden></div>
+          </section>
           <section class="selected-day" aria-live="polite">
             <div class="selected-date-nav">
               <button id="previous-date" class="calendar-nav-button" type="button" aria-label="Previous date">‹</button>
@@ -95,10 +103,6 @@
               <button id="next-date" class="calendar-nav-button" type="button" aria-label="Next date">›</button>
             </div>
             <div id="month-rota-list" class="month-rota-list"></div>
-            <section class="next-days">
-              <button id="next-days-toggle" class="next-days-toggle" type="button" aria-expanded="false" aria-controls="next-days-list">Next 30 days<span class="trust-chevron" aria-hidden="true">⌄</span></button>
-              <div id="next-days-list" class="next-days-list" hidden></div>
-            </section>
           </section>
         </section>
       </main>
@@ -108,6 +112,16 @@
         <button id="footer-refresh" class="text-button" type="button">Refresh rota</button>
       </footer>
     </div>
+
+    <dialog id="settings-dialog" class="settings-dialog" aria-labelledby="settings-title">
+      <div class="settings-head"><h2 id="settings-title">Rota settings</h2><button id="close-settings" class="dialog-close" type="button" aria-label="Close settings">×</button></div>
+      <label class="settings-field" for="first-site-setting"><span>Show first</span><select id="first-site-setting"><option value="HGS">HGS</option><option value="QE">QE</option></select></label>
+      <fieldset class="settings-fieldset"><legend>Open by default</legend>
+        <label><input id="qe-open-setting" type="checkbox"> QE</label>
+        <label><input id="hgs-open-setting" type="checkbox"> HGS</label>
+      </fieldset>
+      <div class="settings-actions"><button id="save-settings" class="settings-save" type="button">Save settings</button><button id="cancel-settings" class="settings-cancel" type="button">Cancel</button></div>
+    </dialog>
 
     <script src="./config.js"></script>
     <script src="./app.js" defer></script>
