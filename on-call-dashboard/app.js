@@ -446,11 +446,17 @@
     const dayStart = (Number(config.dayStartHour) || 8) * 60;
     const nightStart = (Number(config.nightStartHour) || 17) * 60;
     const shift = minute >= dayStart && minute < nightStart ? 'Day cover' : 'Night cover';
-    const roles = snapshot.current.map((role) => {
-      const key = role.label.replace(/\s+(day|night)$/i, '');
-      const until = snapshot.handovers?.[key];
-      const untilText = until ? `Until ${handoverWhen(until, today)}` : snapshot.ended ? 'Until the rota ends' : 'No change in the next 7 days';
-      return `<div class="snapshot-role"><p class="snapshot-role-label">${escapeHtml(role.label)}</p><p class="snapshot-role-name">${namesHtml(role.value)}</p><p class="snapshot-role-until">${escapeHtml(untilText)}</p></div>`;
+    const groupFor = (label) => /registrar|\bspr\b|\breg\b|\bst[1-8]\b/i.test(label) ? 'Registrars' : 'Consultants';
+    const groups = ['Consultants', 'Registrars'].map((title) => {
+      const entries = snapshot.current.filter((role) => groupFor(role.label) === title);
+      const content = entries.map((role) => {
+        const key = role.label.replace(/\s+(day|night)$/i, '');
+        const until = snapshot.handovers?.[key];
+        const untilText = until ? `Until ${handoverWhen(until, today)}` : snapshot.ended ? 'Until the rota ends' : 'No change in the next 7 days';
+        const detail = role.label.replace(/\b(registrars?|spr|reg|st[1-8])\b/ig, '').trim() || 'Cover';
+        return `<div class="snapshot-assignment"><p class="snapshot-assignment-label">${escapeHtml(detail)}</p><p class="snapshot-role-name">${namesHtml(role.value)}</p><p class="snapshot-role-until">${escapeHtml(untilText)}</p></div>`;
+      }).join('') || '<p class="role-empty snapshot-empty">No rota column</p>';
+      return `<div class="snapshot-role-group"><p class="snapshot-group-title">${title}</p>${content}</div>`;
     }).join('');
     let handover = '';
     if (snapshot.changed?.length) {
@@ -485,13 +491,14 @@
         ? `${currentSnapshotHtml(trust, currentSnapshot, todayKey())}<div class="no-source"><span class="no-source-icon" aria-hidden="true">i</span><span>No rota entry was found for today.</span></div>`
         : `<div class="no-source"><span class="no-source-icon" aria-hidden="true">i</span><span>No rota entry was found for this date.</span></div>`;
     } else {
-      const roles = [...data.registrars, ...data.consultants];
       const dayStart = (Number(config.dayStartHour) || 8) * 60;
       const nightStart = (Number(config.nightStartHour) || 17) * 60;
-      body = `${currentSnapshot ? currentSnapshotHtml(trust, currentSnapshot, todayKey()) + '<p class="full-rota-label">Full rota today</p>' : ''}<div class="role-grid">${roles.map((role) => {
+      const groups = [{ title: 'Consultants', roles: data.consultants }, { title: 'Registrars', roles: data.registrars }];
+      body = `${currentSnapshot ? currentSnapshotHtml(trust, currentSnapshot, todayKey()) + '<p class="full-rota-label">Full rota today</p>' : ''}<div class="role-grid">${groups.map((group) => `<div class="role-card"><p class="role-label">${group.title}</p>${group.roles.length ? group.roles.map((role) => {
         const slot = /\bnight\b/i.test(role.label) ? `${String(nightStart / 60).padStart(2, '0')}:00–${String(dayStart / 60).padStart(2, '0')}:00` : /\bday\b/i.test(role.label) ? `${String(dayStart / 60).padStart(2, '0')}:00–${String(nightStart / 60).padStart(2, '0')}:00` : '';
-        return `<div class="role-card"><p class="role-label">${escapeHtml(role.label)}${slot ? `<span class="role-period">${slot}</span>` : ''}</p><p class="role-name">${namesHtml(role.value)}</p></div>`;
-      }).join('') || '<div class="role-card"><p class="role-name role-empty">No on-call columns found.</p></div>'}</div>`;
+        const detail = role.label.replace(/\b(registrars?|spr|reg|st[1-8]|consultant)\b/ig, '').trim() || 'Cover';
+        return `<div class="role-assignment"><p class="role-assignment-label">${escapeHtml(detail)}${slot ? `<span class="role-period">${slot}</span>` : ''}</p><p class="role-name">${namesHtml(role.value)}</p></div>`;
+      }).join('') : `<p class="role-name role-empty">No ${group.title.toLocaleLowerCase('en-GB').replace(/s$/, '')} column</p>`}</div>`).join('')}</div>`;
     }
     return `<article class="trust-card${collapsed ? ' is-collapsed' : ''}" data-trust="${trust}">
       <button class="trust-toggle" type="button" aria-expanded="${!collapsed}" aria-controls="${headingId}-body">
