@@ -1,7 +1,7 @@
 /*
- * Public sheet sources. The rota data is read-only and already published to
- * the web. QE and HGS currently use tabs in the same workbook. If HGS moves to
- * another workbook, change its spreadsheetId. Do not put credentials here.
+ * Public sheet sources. Long-form registrar rotas are joined by date to the
+ * consultant rota. Solihull On Call is intentionally not used. The short QE
+ * and HGS tabs remain as fallbacks if a long-form sheet is unavailable.
  */
 window.ROTA_CONFIG = {
   refreshEveryMs: 5 * 60 * 1000,
@@ -14,15 +14,21 @@ window.ROTA_CONFIG = {
       label: 'Queen Elizabeth Hospital',
       shortLabel: 'QE',
       spreadsheetId: '1Ulyew6jJWbt6D6Enlpj-Je4R__tc309UP7WHEry9Obw',
-      sheetName: 'QE',
-      csvUrl: ''
+      fallbackSheetName: 'QE',
+      sources: [
+        { sheetName: 'QE Reg', kind: 'qe-registrars' },
+        { sheetName: 'Consultant Rota', kind: 'qe-consultants' }
+      ]
     },
     HGS: {
       label: 'HGS',
       shortLabel: 'HGS',
       spreadsheetId: '1Ulyew6jJWbt6D6Enlpj-Je4R__tc309UP7WHEry9Obw',
-      sheetName: 'HGS',
-      csvUrl: ''
+      fallbackSheetName: 'HGS',
+      sources: [
+        { sheetName: 'HGS Reg', kind: 'hgs-registrars' },
+        { sheetName: 'Consultant Rota', kind: 'hgs-consultants' }
+      ]
     }
   }
 };
