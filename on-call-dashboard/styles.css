@@ -122,6 +122,7 @@ h2 { margin-bottom: 0; color: var(--navy); font-size: 23px; line-height: 1.2; }
 .role-period { display: block; margin-top: 3px; color: var(--muted); font-family: var(--mono); font-size: 10px; font-weight: 400; letter-spacing: 0; }
 .role-assignment + .role-assignment { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
 .role-assignment-label { margin: 0 0 5px; color: var(--ink-soft); font-size: 11px; }
+.role-assignment-label, .snapshot-assignment-label { text-transform: capitalize; }
 .role-name { margin-bottom: 0; color: var(--ink); font-family: var(--serif); font-size: 18px; font-weight: 400; line-height: 1.25; overflow-wrap: anywhere; }
 .role-empty { color: var(--muted); font-size: 13px; font-weight: 500; }
 .handover-note { display: block; margin-top: 5px; color: var(--ink-soft); font-size: 11px; font-weight: 500; }
@@ -132,6 +133,10 @@ h2 { margin-bottom: 0; color: var(--navy); font-size: 23px; line-height: 1.2; }
 .error-banner { margin-bottom: 13px; border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px; background: var(--amber-wash); color: var(--ink-soft); font-size: 12px; line-height: 1.5; }
 
 .month-heading { align-items: end; }
+.search-toggle { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 11px; padding: 9px 12px; background: var(--paper); color: var(--ink-soft); font-size: 12px; font-weight: 700; cursor: pointer; }
+.search-toggle:hover, .search-toggle.is-open { border-color: var(--teal); background: var(--teal-wash); color: var(--teal-dark); }
+.search-toggle span { font-size: 18px; line-height: 12px; }
+.search-panel { margin: 0 0 12px; }
 .search-box { width: min(100%, 280px); display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 0 10px; background: var(--paper); color: var(--muted); }
 .search-box:focus-within { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(104,131,109,.13); }
 .search-icon { font-size: 23px; line-height: 1; transform: rotate(-20deg); }
@@ -193,7 +198,7 @@ mark { border-radius: 3px; padding: 0 2px; background: #edf3ee; color: var(--ink
 .selected-date-title { flex: 1; margin: 0; color: var(--navy); font-family: Manrope, sans-serif; font-size: 17px; font-weight: 800; letter-spacing: -.025em; }
 .selected-date-nav .calendar-nav-button { flex: 0 0 32px; }
 .month-rota-list { display: grid; gap: 11px; }
-.next-days { margin-top: 15px; border-top: 1px solid var(--line); }
+.next-days { margin-top: 13px; border-top: 1px solid var(--line); }
 .next-days-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; border: 0; padding: 14px 1px 10px; background: transparent; color: var(--navy); text-align: left; font-family: var(--serif); font-size: 17px; font-weight: 600; cursor: pointer; }
 .next-days-toggle .trust-chevron { transition: transform .18s ease; }
 .next-days-toggle.is-open .trust-chevron { transform: rotate(180deg); }
@@ -205,6 +210,21 @@ mark { border-radius: 3px; padding: 0 2px; background: #edf3ee; color: var(--ink
 .next-days-sites { display: grid; gap: 4px; min-width: 0; color: var(--ink-soft); font-size: 11px; overflow-wrap: anywhere; }
 .next-days-site { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 5px; }
 .next-days-site strong { color: var(--ink); }
+.settings-dialog { width: min(420px, calc(100vw - 28px)); max-width: none; border: 1px solid var(--line); border-radius: 18px; padding: 21px; background: var(--paper); color: var(--ink); box-shadow: 0 18px 60px rgba(0, 0, 0, .22); }
+.settings-dialog::backdrop { background: rgba(12, 19, 22, .48); backdrop-filter: blur(2px); }
+.settings-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.settings-head h2 { font-size: 21px; }
+.dialog-close { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 50%; background: var(--surface-soft); color: var(--ink-soft); font-size: 21px; line-height: 1; cursor: pointer; }
+.settings-field { display: grid; gap: 7px; margin-bottom: 17px; color: var(--ink-soft); font-size: 12px; font-weight: 650; }
+.settings-field select { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--surface-soft); color: var(--ink); }
+.settings-fieldset { display: grid; gap: 11px; margin: 0 0 20px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; color: var(--ink-soft); font-size: 12px; }
+.settings-fieldset legend { padding: 0 5px; color: var(--ink-soft); font-size: 11px; font-weight: 700; }
+.settings-fieldset label { display: flex; align-items: center; gap: 9px; }
+.settings-fieldset input { accent-color: var(--teal-dark); }
+.settings-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.settings-save, .settings-cancel { border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.settings-save { border-color: var(--teal-dark); background: var(--teal-dark); color: #fff; }
+.settings-cancel { background: var(--paper); color: var(--ink-soft); }
 .no-results { padding: 28px 16px; border: 1px dashed #cfdae2; border-radius: 14px; color: var(--ink-soft); text-align: center; font-size: 13px; }
 
 .footer { width: min(100% - 40px, 920px); display: flex; justify-content: space-between; gap: 12px; margin: 0 auto; border-top: 1px solid var(--line); padding: 15px 0 25px; color: var(--muted); font-size: 11px; }
@@ -216,6 +236,8 @@ mark { border-radius: 3px; padding: 0 2px; background: #edf3ee; color: var(--ink
   .network-state { max-width: 39vw; font-size: 10px; }
   .topbar-actions { gap: 7px; }
   .install-button, .theme-button { padding: 6px 8px; font-size: 10px; }
+  .topbar-actions { gap: 5px; }
+  .topbar .theme-button { padding: 6px 7px; }
   main { width: min(100% - 28px, 920px); }
   .intro { align-items: flex-start; flex-direction: column; gap: 14px; padding: 30px 0 21px; }
   .updated-pill { margin: 0; }
@@ -231,7 +253,8 @@ mark { border-radius: 3px; padding: 0 2px; background: #edf3ee; color: var(--ink
   .snapshot-role-name { font-size: 15px; }
   .role-card { padding: 10px; }
   .role-name { font-size: 14px; }
-  .month-heading { align-items: stretch; flex-direction: column; }
+  .month-heading { align-items: center; flex-direction: row; }
+  .search-toggle { padding: 8px 10px; }
   .search-box { width: 100%; }
   .search-result { grid-template-columns: 68px minmax(0, 1fr); gap: 7px; padding: 8px; }
   .search-result-roles { font-size: 11px; }
