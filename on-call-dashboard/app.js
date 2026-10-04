@@ -86,6 +86,12 @@
     return latestCommon && latestCommon > configuredEnd ? latestCommon : configuredEnd;
   }
 
+  function calendarRangeStart(end = lookaheadEnd()) {
+    const firstDate = trustOrder.flatMap((trust) => records[trust].map((row) => row.date))
+      .filter((day) => day <= end).sort()[0];
+    return firstDate || todayKey();
+  }
+
   function lookaheadMonths(start, end) {
     const [sy, sm] = start.split('-').map(Number);
     const [ey, em] = end.split('-').map(Number);
@@ -660,21 +666,22 @@
   }
 
   function renderMonth() {
-    const start = todayKey();
-    const end = lookaheadEnd(start);
+    const today = todayKey();
+    const end = lookaheadEnd(today);
+    const start = calendarRangeStart(end);
     ui.monthTitle.textContent = 'Coming month';
     const query = ui.search.value.trim().toLocaleLowerCase('en-GB');
     ui.clearSearch.hidden = !query;
     const order = getTrustOrder();
     const matchingDays = [];
     for (let day = start; day <= end; day = addDays(day, 1)) {
-      if (!query || dayMatchesSearch(day, query, start)) matchingDays.push(day);
+      if (!query || dayMatchesSearch(day, query, today)) matchingDays.push(day);
     }
     const queryChanged = query !== lastMonthQuery;
     if (queryChanged) showAllSearchResults = false;
     if (query && queryChanged && matchingDays.length) { selectedMonthDate = matchingDays[0]; dateSectionOpen = true; }
     lastMonthQuery = query;
-    if (!selectedMonthDate || selectedMonthDate < start || selectedMonthDate > end) selectedMonthDate = matchingDays[0] || start;
+    if (!selectedMonthDate || selectedMonthDate < start || selectedMonthDate > end) selectedMonthDate = matchingDays.includes(today) ? today : matchingDays[0] || today;
     ui.dateSectionToggle.setAttribute('aria-expanded', String(dateSectionOpen));
     ui.dateSectionToggle.classList.toggle('is-open', dateSectionOpen);
     ui.dateSectionContent.hidden = !dateSectionOpen;
@@ -683,15 +690,15 @@
     else { ui.searchResults.hidden = true; ui.searchResults.innerHTML = ''; }
     ui.monthCaption.textContent = query
       ? (matchingDays.length ? `${matchingDays.length} matching date${matchingDays.length === 1 ? '' : 's'} · tap a date to see the rota` : 'No dates match your search')
-      : `Browse the next ${lookaheadMonths(start, end)} months · tap a date to see the rota`;
+      : `Browse ${lookaheadMonths(start, end)} months of rota dates · tap a date to see the rota`;
     renderMonthGrid(start, end, visibleMonthStart, query, matchingDays);
     ui.selectedDateTitle.textContent = dateLabel(selectedMonthDate);
     ui.previousDate.disabled = selectedMonthDate <= start;
     ui.nextDate.disabled = selectedMonthDate >= end;
-    const selectedSnapshots = selectedMonthDate === start ? liveSnapshots : {};
+    const selectedSnapshots = selectedMonthDate === today ? liveSnapshots : {};
     ui.monthList.innerHTML = order.map((trust) => cardHtml(trust, selectedMonthDate, false, true, selectedSnapshots[trust] || null)).join('');
     bindCardToggles(ui.monthList);
-    renderNextDays(start, end);
+    renderNextDays(today, end);
   }
 
   function renderNextDays(start, end) {
@@ -802,8 +809,8 @@
   }
 
   function navigateDate(amount) {
-    const start = todayKey();
-    const end = lookaheadEnd(start);
+    const end = lookaheadEnd();
+    const start = calendarRangeStart(end);
     const target = addDays(selectedMonthDate || start, amount);
     if (target < start || target > end) return;
     selectedMonthDate = target;
@@ -892,7 +899,7 @@
       if (!insideMonth) classes.push('is-outside');
       else if (!insideRange) classes.push('is-unavailable');
       if (selected) classes.push('is-selected');
-      if (day === rangeStart) classes.push('is-today');
+      if (day === todayKey()) classes.push('is-today');
       if (query && available && !matched.has(day)) classes.push('is-search-dim');
       const dayNumber = keyToDate(day).getUTCDate();
       const summary = trustOrder.map((trust) => {
@@ -943,7 +950,9 @@
     }).join('');
   }
 
-  function navigateToMonth(month, rangeStart = todayKey(), rangeEnd = lookaheadEnd(rangeStart)) {
+  function navigateToMonth(month) {
+    const rangeEnd = lookaheadEnd();
+    const rangeStart = calendarRangeStart(rangeEnd);
     visibleMonthStart = month;
     const dates = trustOrder.flatMap((trust) => records[trust].map((row) => row.date))
       .filter((day) => day >= month && day < shiftMonth(month, 1) && day >= rangeStart && day <= rangeEnd).sort();
@@ -954,8 +963,8 @@
   }
 
   function navigateToYear(year) {
-    const start = todayKey();
-    const end = lookaheadEnd(start);
+    const end = lookaheadEnd();
+    const start = calendarRangeStart(end);
     const months = availableCalendarMonths(start, end).filter((month) => month.startsWith(`${year}-`));
     if (months.length) {
       visibleMonthStart = months[0];
@@ -975,8 +984,8 @@
   }
 
   function navigateMonth(amount) {
-    const start = todayKey();
-    const end = lookaheadEnd(start);
+    const end = lookaheadEnd();
+    const start = calendarRangeStart(end);
     visibleMonthStart = shiftMonth(visibleMonthStart, amount);
     selectedMonthDate = visibleMonthStart < start ? start : visibleMonthStart > end ? end : visibleMonthStart;
     calendarPickerOpen = false;
@@ -1103,7 +1112,13 @@
     const button = event.target.closest('[data-picker-month]:not(:disabled)');
     if (button) navigateToMonth(button.dataset.pickerMonth);
   });
-  ui.calendarToday.addEventListener('click', () => navigateToMonth(monthStart(todayKey())));
+  ui.calendarToday.addEventListener('click', () => {
+    selectedMonthDate = todayKey();
+    visibleMonthStart = monthStart(selectedMonthDate);
+    calendarPickerOpen = false;
+    dateSectionOpen = true;
+    renderMonth();
+  });
   ui.calendarPickerClose.addEventListener('click', closeCalendarPicker);
   document.addEventListener('click', (event) => {
     if (!calendarPickerOpen || ui.calendarPicker.contains(event.target) || ui.calendarMonthLabel.contains(event.target)) return;
