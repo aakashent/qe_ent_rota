@@ -26,6 +26,18 @@ function makeKey(year, month, day) {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+function londonDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: config.dateTimeZone || 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(date).reduce((out, part) => (out[part.type] = part.value, out), {});
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function addDaysKey(key, amount) {
+  const [year, month, day] = key.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + amount, 12)).toISOString().slice(0, 10);
+}
+
 function responseMatrix(text) {
   const start = text.indexOf('('), end = text.lastIndexOf(')');
   if (start < 0 || end <= start) throw new Error('Google returned an unexpected sheet response.');
@@ -100,18 +112,18 @@ function mergeRows(sourceRows) {
   })).sort((a, b) => a.date.localeCompare(b.date));
 }
 
-async function loadSite(trust) {
+async function loadSite(trust, readMatrix = getMatrix) {
   const definition = config.trusts[trust] || {};
   if (!definition.sources?.length) return { status: 'unconfigured', rows: [], error: '' };
   try {
-    const sourceRows = await Promise.all(definition.sources.map(async (source) => parseLongSource(await getMatrix(definition, source.sheetName), source)));
+    const sourceRows = await Promise.all(definition.sources.map(async (source) => parseLongSource(await readMatrix(definition, source.sheetName), source)));
     const rows = mergeRows(sourceRows);
     if (!rows.length) throw new Error('No dated rota rows were found.');
     return { status: 'fresh', rows, error: '' };
   } catch (longError) {
     if (!definition.fallbackSheetName) return { status: 'error', rows: [], error: longError.message };
     try {
-      const rows = parseFallback(await getMatrix(definition, definition.fallbackSheetName));
+      const rows = parseFallback(await readMatrix(definition, definition.fallbackSheetName));
       if (!rows.length) throw new Error(`No dated rows were found in ${definition.fallbackSheetName}.`);
       return { status: 'fallback', rows, error: '' };
     } catch (fallbackError) {
@@ -121,16 +133,32 @@ async function loadSite(trust) {
 }
 
 module.exports = async function handler(req, res) {
-  res.setHeader('Cache-Control', 'no-store, max-age=0');
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet, noimageindex');
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'Method not allowed.' });
   }
   try {
-    const sites = Object.fromEntries(await Promise.all(['QE', 'HGS'].map(async (trust) => [trust, await loadSite(trust)])));
-    if (sites.QE.rows.length && sites.HGS.rows.length && JSON.stringify(sites.QE.rows) === JSON.stringify(sites.HGS.rows)) {
+    const compact = ['1', 'true'].includes(String(req.query?.compact || '').toLowerCase());
+    const requestedSite = String(req.query?.site || 'BOTH').toUpperCase();
+    const siteNames = compact && ['QE', 'HGS'].includes(requestedSite) ? [requestedSite] : ['QE', 'HGS'];
+    const matrices = new Map();
+    const readMatrix = (definition, sheetName) => {
+      const key = `${definition.spreadsheetId}:${sheetName}`;
+      if (!matrices.has(key)) matrices.set(key, getMatrix(definition, sheetName));
+      return matrices.get(key);
+    };
+    const sites = Object.fromEntries(await Promise.all(siteNames.map(async (trust) => [trust, await loadSite(trust, readMatrix)])));
+    if (sites.QE?.rows.length && sites.HGS?.rows.length && JSON.stringify(sites.QE.rows) === JSON.stringify(sites.HGS.rows)) {
       sites.HGS = { status: 'error', rows: [], error: 'The HGS sources returned the same rows as QE. Check the HGS sheet configuration.' };
+    }
+    if (compact) {
+      const start = addDaysKey(londonDateKey(), -1);
+      const end = addDaysKey(start, 9);
+      Object.values(sites).forEach((site) => { site.rows = site.rows.filter((row) => row.date >= start && row.date <= end); });
+      res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900');
+    } else {
+      res.setHeader('Cache-Control', 'no-store, max-age=0');
     }
     res.setHeader('X-Content-Type-Options', 'nosniff');
     return res.status(200).json({ generatedAt: Date.now(), timezone: config.dateTimeZone || 'Europe/London', dayStartHour: config.dayStartHour || 8, nightStartHour: config.nightStartHour || 17, sites });
