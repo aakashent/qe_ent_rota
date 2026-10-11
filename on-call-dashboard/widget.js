@@ -11,6 +11,24 @@ const siteFilter = ['HGS', 'QE', 'BOTH'].includes(String(args.widgetParameter ||
 const sites = siteFilter === 'BOTH' ? ['HGS', 'QE'] : [siteFilter];
 const FEED_URL = `${APP_HOME}api/rota?compact=1&site=${siteFilter}`;
 const CACHE_NAME = `uhb-ent-on-call-${siteFilter.toLowerCase()}.json`;
+const OUTER_PADDING = 12;
+
+function widgetFamilyWidth() {
+  const screen = Device.screenSize();
+  const height = Math.round(Math.max(screen.width, screen.height));
+  const widths = {
+    956: [174, 372], 932: [170, 364], 926: [170, 364], 896: [169, 360],
+    874: [162, 344], 852: [158, 338], 844: [158, 338], 812: [155, 329],
+    736: [159, 348], 667: [148, 322], 568: [141, 292]
+  };
+  const known = Object.keys(widths).map(Number).sort((a, b) => Math.abs(a - height) - Math.abs(b - height))[0];
+  if (Math.abs(known - height) <= 24) return family === 'small' ? widths[known][0] : widths[known][1];
+  const shortSide = Math.min(screen.width, screen.height);
+  return family === 'small' ? Math.round(shortSide * 0.4) : Math.min(392, Math.round(shortSide * 0.85));
+}
+
+const WIDGET_WIDTH = widgetFamilyWidth();
+const CONTENT_WIDTH = WIDGET_WIDTH - OUTER_PADDING * 2;
 
 function keyFor(date) {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' })
@@ -203,6 +221,8 @@ function card(parent, padding = 8) {
   box.layoutVertically();
   box.backgroundColor = colour.card;
   box.cornerRadius = 11;
+  box.borderColor = colour.line;
+  box.borderWidth = 0.5;
   box.setPadding(padding, padding, padding, padding);
   return box;
 }
@@ -257,10 +277,11 @@ function addSmall(widget, feed, feedState, rotaDate, clock) {
     role(widget, 'Registrar', active.registrar, 15, 2);
   } else {
     const columns = widget.addStack();
+    const columnWidth = (CONTENT_WIDTH - 5) / 2;
     sites.forEach((site, index) => {
       const active = currentFor(feed, site, rotaDate, clock.minute);
       const box = card(columns, 6);
-      box.size = new Size(62, 0);
+      box.size = new Size(columnWidth, 82);
       addText(box, site, 9, siteColour(site), { font: Font.boldSystemFont(9), scale: 1 });
       box.addSpacer(4);
       addText(box, 'CONSULTANT', 6, colour.muted, { font: Font.boldSystemFont(6), scale: 1 });
@@ -276,7 +297,7 @@ function addSmall(widget, feed, feedState, rotaDate, clock) {
 
 function dayColumn(parent, feed, day, offset, clock) {
   const box = card(parent, sites.length > 1 ? 6 : 8);
-  box.size = new Size(145, 0);
+  box.size = new Size((CONTENT_WIDTH - 7) / 2, 104);
   const title = offset === 0 ? 'TODAY' : 'TOMORROW';
   addText(box, title, 8, offset === 0 ? colour.accent : colour.muted, { font: Font.boldSystemFont(8), scale: 1 });
   addText(box, formatDate(day, { weekday: 'short', day: 'numeric', month: 'short' }), 11, colour.ink, { font: Font.semiboldSystemFont(11) });
@@ -333,6 +354,8 @@ function largeDate(parent, day, offset) {
 
 function singleSiteWeekRow(parent, feed, site, day, offset, clock) {
   const row = card(parent, 5);
+  const roleWidth = (CONTENT_WIDTH - 10 - 46 - 5 - 6) / 2;
+  row.size = new Size(CONTENT_WIDTH, 39);
   if (dayOfWeek(day) === 0 || dayOfWeek(day) === 6) row.backgroundColor = colour.cardAlt;
   row.layoutHorizontally();
   row.centerAlignContent();
@@ -341,7 +364,7 @@ function singleSiteWeekRow(parent, feed, site, day, offset, clock) {
   const rota = getRow(feed, site, day);
   const active = offset === 0 ? currentFor(feed, site, day, clock.minute) : null;
   const consultant = vertical(row);
-  consultant.size = new Size(112, 0);
+  consultant.size = new Size(roleWidth, 0);
   addText(consultant, active ? active.consultant : consultantSummary(rota?.consultants || []), 10, colour.ink,
     { font: Font.mediumSystemFont(10), lines: 2, scale: 0.55 });
   row.addSpacer(6);
@@ -352,6 +375,8 @@ function singleSiteWeekRow(parent, feed, site, day, offset, clock) {
 
 function bothSitesWeekRow(parent, feed, day, offset, clock) {
   const row = card(parent, 5);
+  const roleWidth = (CONTENT_WIDTH - 10 - 46 - 5 - 6) / 2;
+  row.size = new Size(CONTENT_WIDTH, 39);
   if (dayOfWeek(day) === 0 || dayOfWeek(day) === 6) row.backgroundColor = colour.cardAlt;
   row.layoutHorizontally();
   row.centerAlignContent();
@@ -361,7 +386,7 @@ function bothSitesWeekRow(parent, feed, day, offset, clock) {
     const rota = getRow(feed, site, day);
     const active = offset === 0 ? currentFor(feed, site, day, clock.minute) : null;
     const column = vertical(row);
-    column.size = new Size(120, 0);
+    column.size = new Size(roleWidth, 0);
     const consultant = active ? active.consultant : consultantSummary(rota?.consultants || []);
     const periods = active ? [{ label: '', value: active.registrar }] : registrarPeriods(rota?.registrars || []);
     addText(column, consultant, 9, colour.ink, { font: Font.mediumSystemFont(9), scale: 0.52 });
@@ -374,19 +399,24 @@ function addLarge(widget, feed, feedState, rotaDate, clock) {
   header(widget, siteFilter === 'BOTH' ? 'UHB ENT' : siteFilter, `${clock.text} · 7-day rota`);
   widget.addSpacer(7);
   const headings = widget.addStack();
+  const roleWidth = (CONTENT_WIDTH - 10 - 46 - 5 - 6) / 2;
+  headings.addSpacer(5);
   const dateHeading = headings.addStack();
-  dateHeading.size = new Size(51, 0);
+  dateHeading.size = new Size(46, 0);
   addText(dateHeading, 'DATE', 7, colour.muted, { font: Font.boldSystemFont(7), scale: 1 });
+  headings.addSpacer(5);
   if (sites.length === 1) {
     const consultantHeading = headings.addStack();
-    consultantHeading.size = new Size(118, 0);
+    consultantHeading.size = new Size(roleWidth, 0);
     addText(consultantHeading, 'CONSULTANT', 7, colour.muted, { font: Font.boldSystemFont(7), scale: 1 });
     headings.addSpacer(6);
-    addText(headings, 'REGISTRAR  D / N', 7, colour.muted, { font: Font.boldSystemFont(7), scale: 1 });
+    const registrarHeading = headings.addStack();
+    registrarHeading.size = new Size(roleWidth, 0);
+    addText(registrarHeading, 'REGISTRAR  D / N', 7, colour.muted, { font: Font.boldSystemFont(7), scale: 1 });
   } else {
     sites.forEach((site, index) => {
       const siteHeading = headings.addStack();
-      siteHeading.size = new Size(120, 0);
+      siteHeading.size = new Size(roleWidth, 0);
       addText(siteHeading, `${site}  C / R`, 7, siteColour(site), { font: Font.boldSystemFont(7), scale: 1 });
       if (index < sites.length - 1) headings.addSpacer(6);
     });
