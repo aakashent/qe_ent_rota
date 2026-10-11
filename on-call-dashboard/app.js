@@ -11,8 +11,6 @@
   let lastFetch = null;
   let installPrompt = null;
   let requestNumber = 0;
-  let gvizReadyPromise = null;
-  let sourceGridPromises = new Map();
   let selectedMonthDate = null;
   let visibleMonthStart = null;
   let lastMonthQuery = '';
@@ -126,280 +124,62 @@
     return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   }
 
-  function parseCSV(text) {
-    const rows = [];
-    let row = [], value = '', quoted = false;
-    const input = String(text).replace(/^\uFEFF/, '');
-    for (let i = 0; i < input.length; i += 1) {
-      const char = input[i];
-      if (quoted) {
-        if (char === '"' && input[i + 1] === '"') { value += '"'; i += 1; }
-        else if (char === '"') quoted = false;
-        else value += char;
-      } else if (char === '"') quoted = true;
-      else if (char === ',') { row.push(value); value = ''; }
-      else if (char === '\n') { row.push(value.replace(/\r$/, '')); rows.push(row); row = []; value = ''; }
-      else value += char;
-    }
-    if (value.length || row.length) { row.push(value.replace(/\r$/, '')); rows.push(row); }
-    return rows;
-  }
-
-  function normaliseHeader(value) {
-    return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-  }
-
-  function detectColumns(headers) {
-    const normal = headers.map(normaliseHeader);
-    const date = normal.findIndex((h) => h === 'date' || h.startsWith('date '));
-    const find = (test) => normal.findIndex(test);
-    const consultantDay = find((h) => h.includes('consultant') && (h.includes('day') || h.includes('daytime')));
-    const consultantNight = find((h) => h.includes('consultant') && (h.includes('night') || h.includes('overnight')));
-    let consultant = find((h) => h.includes('consultant') && !h.includes('day') && !h.includes('night') && !h.includes('overnight'));
-    if (consultant < 0) consultant = find((h) => h.includes('consultant'));
-    const isReg = (h) => /\b(reg|registrar|spr|st[1-8])\b/.test(h);
-    const regDay = find((h) => isReg(h) && (h.includes('day') || h.includes('am')));
-    const regNight = find((h) => isReg(h) && (h.includes('night') || h.includes('overnight')));
-    const candidates = normal.map((h, i) => ({ h, i })).filter(({ h }) => isReg(h));
-    const dayIndex = regDay >= 0 ? regDay : candidates.find(({ h }) => /\bday\b/.test(h))?.i ?? -1;
-    const nightIndex = regNight >= 0 ? regNight : candidates.find(({ h }) => /\bnight\b|overnight/.test(h))?.i ?? -1;
-    return { date, consultant, consultantDay, consultantNight, regDay: dayIndex, regNight: nightIndex };
-  }
-
-  function parseMatrix(input) {
-    const matrix = input.filter((row) => row.some((cell) => String(cell ?? '').trim() !== ''));
-    if (matrix.length < 2) return [];
-    const header = matrix[0].map((x) => String(x || '').trim());
-    const columns = detectColumns(header);
-    if (columns.date < 0) throw new Error('Could not find a Date column.');
-    const get = (row, index) => index >= 0 ? String(row[index] ?? '').trim() : '';
-    return matrix.slice(1).map((row) => {
-      const day = dateKey(get(row, columns.date));
-      if (!day) return null;
-      const consultants = [];
-      if (columns.consultantDay >= 0) consultants.push({ label: 'Consultant day', value: get(row, columns.consultantDay) });
-      if (columns.consultantNight >= 0) consultants.push({ label: 'Consultant night', value: get(row, columns.consultantNight) });
-      if (!consultants.length && columns.consultant >= 0) consultants.push({ label: 'Consultant', value: get(row, columns.consultant) });
-      const registrars = [];
-      if (columns.regDay >= 0) registrars.push({ label: 'Registrar day', value: get(row, columns.regDay) });
-      if (columns.regNight >= 0) registrars.push({ label: 'Registrar night', value: get(row, columns.regNight) });
-      return { date: day, consultants, registrars };
-    }).filter(Boolean);
-  }
-
-  function parseRows(csv) { return parseMatrix(parseCSV(csv)); }
-
-  function parseLongSource(matrix, source) {
-    const header = (matrix[0] || []).map(normaliseHeader);
-    const has = (index, text) => (header[index] || '').includes(text);
-    const validHeaders = source.kind === 'qe-registrars'
-      ? has(12, 'day on call') && has(13, 'night on call')
-      : source.kind === 'hgs-registrars'
-        ? has(2, 'day spr') && has(3, 'night spr')
-        : source.kind === 'qe-consultants'
-          ? has(2, 'qe first on call') && has(4, 'bhh daytime') && has(5, 'bhh overnight')
-          : source.kind === 'hgs-consultants'
-            ? has(2, 'qe first on call') && has(4, 'bhh daytime') && has(5, 'bhh overnight')
-            : false;
-    if (!validHeaders) throw new Error(`Unexpected columns in ${source.sheetName}.`);
-    const cell = (row, index) => String(row[index] ?? '').trim();
-    return matrix.map((row) => {
-      const date = dateKey(cell(row, 0));
-      if (!date) return null;
-      if (source.kind === 'qe-registrars') return {
-        date, consultants: [],
-        registrars: [
-          { label: 'Registrar day', value: cell(row, 12) },
-          { label: 'Registrar night', value: cell(row, 13) }
-        ]
-      };
-      if (source.kind === 'hgs-registrars') return {
-        date, consultants: [],
-        registrars: [
-          { label: 'Registrar day', value: cell(row, 2) },
-          { label: 'Registrar night', value: cell(row, 3) }
-        ]
-      };
-      if (source.kind === 'qe-consultants') return {
-        date, consultants: [{ label: 'Consultant', value: cell(row, 2) }], registrars: []
-      };
-      if (source.kind === 'hgs-consultants') return {
-        date, consultants: [
-          { label: 'Consultant day', value: cell(row, 4) },
-          { label: 'Consultant night', value: cell(row, 5) }
-        ], registrars: []
-      };
-      return null;
-    }).filter(Boolean);
-  }
-
-  function mergeSourceRecords(sources) {
-    const byDate = new Map();
-    sources.flat().forEach((sourceRow) => {
-      const row = byDate.get(sourceRow.date) || { date: sourceRow.date, consultants: [], registrars: [] };
-      if (sourceRow.consultants.length) { row.consultants = sourceRow.consultants; row._hasConsultants = true; }
-      if (sourceRow.registrars.length) { row.registrars = sourceRow.registrars; row._hasRegistrars = true; }
-      byDate.set(sourceRow.date, row);
-    });
-    return [...byDate.values()].map((row) => {
-      if (!row.consultants.length) row.consultants = [{ label: 'Consultant', value: '#N/A' }];
-      if (!row.registrars.length) row.registrars = [
-        { label: 'Registrar day', value: '#N/A' },
-        { label: 'Registrar night', value: '#N/A' }
-      ];
-      return row;
-    }).sort((a, b) => a.date.localeCompare(b.date));
-  }
-
-  function querySourceGrid(definition, source) {
-    const spreadsheetId = source.spreadsheetId || definition.spreadsheetId;
-    const key = `${spreadsheetId}:${source.sheetName}`;
-    if (!sourceGridPromises.has(key)) {
-      const url = sourceUrl({ spreadsheetId, sheetName: source.sheetName });
-      const promise = queryGrid(url).catch((error) => { sourceGridPromises.delete(key); throw error; });
-      sourceGridPromises.set(key, promise);
-    }
-    return sourceGridPromises.get(key);
-  }
-
-  function sourceUrl(definition) {
-    if (definition.csvUrl) return definition.csvUrl;
-    if (!definition.spreadsheetId) return '';
-    const params = new URLSearchParams({ sheet: definition.sheetName || '', headers: '1', _: String(Date.now()) });
-    return `https://docs.google.com/spreadsheets/d/${encodeURIComponent(definition.spreadsheetId)}/gviz/tq?${params}`;
-  }
-
-  function hasConfiguredSource(definition) {
-    return !!(definition?.sources?.length || sourceUrl(definition || {}));
-  }
-
   function cacheKey(trust) { return `oncall-rota-v1-${trust}`; }
 
-  function ensureGvizReady() {
-    if (window.google?.visualization?.Query) return Promise.resolve();
-    if (!window.google?.charts?.load || !window.google?.charts?.setOnLoadCallback) {
-      return Promise.reject(new Error('Google’s sheet reader could not be loaded. Check your connection and refresh.'));
-    }
-    if (!gvizReadyPromise) {
-      gvizReadyPromise = new Promise((resolve, reject) => {
-        try {
-          window.google.charts.load('current', { packages: ['corechart'] });
-          window.google.charts.setOnLoadCallback(resolve);
-        } catch (error) { reject(error); }
-      });
-    }
-    return gvizReadyPromise;
-  }
-
-  function queryGrid(url) {
-    return ensureGvizReady().then(() => new Promise((resolve, reject) => {
-      try {
-        const query = new window.google.visualization.Query(url, { sendMethod: 'scriptInjection' });
-        query.setTimeout(20);
-        query.send((response) => {
-          if (response.isError()) {
-            reject(new Error(response.getMessage() || 'Google could not read this published sheet.'));
-            return;
-          }
-          const table = response.getDataTable();
-          const matrix = [];
-          const columnCount = table.getNumberOfColumns();
-          const headers = [];
-          for (let col = 0; col < columnCount; col += 1) headers.push(table.getColumnLabel(col) || `Column ${col + 1}`);
-          matrix.push(headers);
-          for (let row = 0; row < table.getNumberOfRows(); row += 1) {
-            const values = [];
-            for (let col = 0; col < columnCount; col += 1) {
-              values.push(table.getFormattedValue(row, col) || '');
-            }
-            matrix.push(values);
-          }
-          resolve(matrix);
-        });
-      } catch (error) { reject(error); }
-    }));
-  }
-
-  async function loadTrust(trust, currentRequest) {
-    const definition = trustConfig[trust] || {};
-    const sourceUrlExists = (definition.sources || []).length > 0 || !!sourceUrl(definition);
-    if (!sourceUrlExists) { loadState[trust] = 'unconfigured'; records[trust] = []; dateIndexes[trust] = null; return; }
-    try {
-      let parsed;
-      let cachedSource;
-      let usedFallback = false;
-      if (definition.sources?.length) {
-        try {
-          const sourceRows = await Promise.all(definition.sources.map(async (source) => {
-            const matrix = await querySourceGrid(definition, source);
-            const rows = parseLongSource(matrix, source);
-            if (!rows.length) throw new Error(`No dated rows were found in ${source.sheetName}.`);
-            return rows;
-          }));
-          parsed = mergeSourceRecords(sourceRows);
-        } catch (sourceError) {
-          if (!definition.fallbackSheetName) throw sourceError;
-          const matrix = await queryGrid(sourceUrl({ spreadsheetId: definition.spreadsheetId, sheetName: definition.fallbackSheetName }));
-          parsed = parseMatrix(matrix);
-          usedFallback = true;
-        }
-        cachedSource = { rows: parsed };
-      } else if (definition.csvUrl) {
-        const url = sourceUrl(definition);
-        const separator = url.includes('?') ? '&' : '?';
-        const response = await fetch(`${url}${separator}_=${Date.now()}`, { cache: 'no-store' });
-        if (!response.ok) throw new Error(`The published sheet returned ${response.status}.`);
-        const csv = await response.text();
-        if (!csv || /<!doctype html|<html/i.test(csv.slice(0, 300))) throw new Error('The sheet did not return published CSV data.');
-        parsed = parseRows(csv);
-        cachedSource = { csv };
-      } else {
-        parsed = parseMatrix(await queryGrid(sourceUrl(definition)));
-        cachedSource = { rows: parsed };
-      }
-      if (!parsed.length) throw new Error('No dated rota rows were found in this sheet.');
-      if (currentRequest !== requestNumber) return;
-      records[trust] = parsed;
+  function applyCachedTrust(trust, error) {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(cacheKey(trust)) || 'null'); } catch {}
+    if (Array.isArray(saved?.rows) && saved.rows.length) {
+      records[trust] = saved.rows;
       dateIndexes[trust] = null;
-      loadState[trust] = usedFallback ? 'fallback' : 'fresh';
-      messages[trust] = usedFallback ? `The long-form ${trust} rota could not be read; showing the shorter ${definition.fallbackSheetName} tab.` : '';
-      localStorage.setItem(cacheKey(trust), JSON.stringify({ savedAt: Date.now(), ...cachedSource }));
-    } catch (error) {
-      if (currentRequest !== requestNumber) return;
-      const cached = localStorage.getItem(cacheKey(trust));
-      if (cached) {
-        try {
-          const saved = JSON.parse(cached);
-          records[trust] = Array.isArray(saved.rows) ? saved.rows : parseRows(saved.csv || '');
-          dateIndexes[trust] = null;
-          loadState[trust] = records[trust].length ? 'cached' : 'error';
-          messages[trust] = records[trust].length ? 'Showing the last saved rota because the published sheet could not be refreshed.' : error.message;
-        } catch {
-          loadState[trust] = 'error'; messages[trust] = error.message;
-        }
-      } else {
-        loadState[trust] = 'error'; messages[trust] = error.message || 'Could not load the published sheet.';
-      }
+      loadState[trust] = 'cached';
+      messages[trust] = `Showing the last saved rota because the feed could not be refreshed${error ? `: ${error}` : '.'}`;
+    } else {
+      records[trust] = [];
+      dateIndexes[trust] = null;
+      loadState[trust] = 'error';
+      messages[trust] = error || 'Could not load the rota feed.';
     }
+  }
+
+  function applyFeedTrust(trust, result) {
+    if (!result || result.status === 'unconfigured') {
+      records[trust] = [];
+      dateIndexes[trust] = null;
+      loadState[trust] = 'unconfigured';
+      messages[trust] = '';
+      return;
+    }
+    if (['fresh', 'fallback'].includes(result.status) && Array.isArray(result.rows) && result.rows.length) {
+      records[trust] = result.rows;
+      dateIndexes[trust] = null;
+      loadState[trust] = result.status;
+      messages[trust] = result.status === 'fallback' ? `Showing the shorter fallback tab because the long-form ${trust} rota could not be read.` : '';
+      try { localStorage.setItem(cacheKey(trust), JSON.stringify({ savedAt: Date.now(), rows: result.rows })); } catch {}
+      return;
+    }
+    applyCachedTrust(trust, result.error || 'No dated rota rows were returned.');
   }
 
   async function refreshData() {
     const thisRequest = ++requestNumber;
-    sourceGridPromises = new Map();
     setRefreshBusy(true);
-    loadState.QE = hasConfiguredSource(trustConfig.QE) ? 'loading' : 'unconfigured';
-    loadState.HGS = hasConfiguredSource(trustConfig.HGS) ? 'loading' : 'unconfigured';
+    loadState.QE = 'loading';
+    loadState.HGS = 'loading';
     messages.QE = ''; messages.HGS = '';
     render();
-    await Promise.all(trustOrder.map((trust) => loadTrust(trust, thisRequest)));
-    if (thisRequest !== requestNumber) return;
-    if (records.QE.length && records.HGS.length && loadState.HGS !== 'unconfigured' && JSON.stringify(records.QE) === JSON.stringify(records.HGS)) {
-      records.HGS = [];
-      dateIndexes.HGS = null;
-      loadState.HGS = 'error';
-      messages.HGS = 'The HGS query returned the same rows as QE. Check that the HGS tab exists and is published.';
+    try {
+      const response = await fetch(`./api/rota?_=${Date.now()}`, { cache: 'no-store' });
+      const feed = await response.json();
+      if (!response.ok || !feed?.sites) throw new Error(feed?.error || `Rota feed returned ${response.status}.`);
+      if (thisRequest !== requestNumber) return;
+      trustOrder.forEach((trust) => applyFeedTrust(trust, feed.sites[trust]));
+      lastFetch = Number(feed.generatedAt) || Date.now();
+    } catch (error) {
+      if (thisRequest !== requestNumber) return;
+      trustOrder.forEach((trust) => applyCachedTrust(trust, error.message));
+      lastFetch = Date.now();
     }
-    lastFetch = Date.now();
     setRefreshBusy(false);
     render();
   }

@@ -1,6 +1,6 @@
 # On-call rota dashboard
 
-A mobile-first, static PWA for the QE and HGS on-call rotas. It is designed for GitHub Pages and reads published Google Sheets through Google's cross-domain Visualization query method. No Google API key or service account is needed.
+A mobile-first PWA for the QE and HGS on-call rotas. The website and its optional Scriptable iPhone widgets use the same `/api/rota` JSON feed, which reads and joins the configured published Google Sheets. No Google API key or service account is needed.
 
 ## Included
 
@@ -10,10 +10,11 @@ A mobile-first, static PWA for the QE and HGS on-call rotas. It is designed for 
 - Automatic column detection for a date, one consultant column or consultant day/night columns, and registrar day/night columns.
 - Five-minute refresh while online; the last fetched rota is saved locally and labelled if shown offline.
 - PWA manifest, icons and a service worker that caches the page shell, not remote rota responses.
+- Optional Scriptable widgets in small (current cover), medium (today and tomorrow) and large (seven days) sizes. Each widget can show HGS, QE or both, and reads the app's feed rather than the spreadsheet directly. Open **iPhone widget** in the page footer for setup instructions.
 
 ## Configure the sheets
 
-Edit `config.js` to change the public workbook ID or source tabs. The app joins the long-form source sheets by date:
+Edit `config.js` to change the public workbook ID or source tabs. The `/api/rota` endpoint is the single data source for the website and widget. It joins the long-form source sheets by date:
 
 - QE registrars: `QE Reg` columns A, M and N.
 - HGS registrars: `HGS Reg` columns A, C and D.
@@ -35,15 +36,11 @@ python3 -m http.server 8000
 
 Then open `http://localhost:8000/on-call-dashboard/` if serving the parent directory, or `http://localhost:8000/` from this folder.
 
-## Publish on GitHub Pages
+## Publish on Vercel
 
-1. Put the contents of this folder at the repository root, or keep the folder and use its path in the published URL.
-2. Push the files to the GitHub repository.
-3. In **Settings → Pages**, choose the branch and folder to publish.
-4. Enable **Enforce HTTPS**.
-5. Open the published site once online. Use the browser’s install option, or on iPhone/iPad use Safari’s Share menu and **Add to Home Screen**.
+Create a Vercel project named `uhb-ent-on-call` and set this folder as the project root. Vercel serves the static files and deploys `api/rota.js` as a serverless function; no build command is required. The project name determines the default `*.vercel.app` address, without a GitHub username in the URL. Connect it to a department-owned repository or deploy the folder with Vercel CLI. Then open the deployed site over HTTPS. Use **Install** in a supported browser, or on iPhone/iPad use Safari’s Share menu and **Add to Home Screen**. The widget setup page is at `/widget-setup.html`.
 
-For a project site published under `https://account.github.io/repository/`, relative asset paths and the service-worker scope are set up to work from that subpath.
+The app URL is embedded into the widget script when someone copies it from the setup page, so the installed widget reads the deployed app's feed.
 
 ## Data and privacy
 

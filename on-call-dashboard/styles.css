@@ -279,6 +279,7 @@ mark { border-radius: 3px; padding: 0 2px; background: #edf3ee; color: var(--ink
 .no-results { padding: 28px 16px; border: 1px dashed #cfdae2; border-radius: 14px; color: var(--ink-soft); text-align: center; font-size: 13px; }
 
 .footer { width: min(100% - 40px, 920px); display: flex; justify-content: space-between; gap: 12px; margin: 0 auto; border-top: 1px solid var(--line); padding: 15px 0 25px; color: var(--muted); font-size: 11px; }
+.footer-actions { display: inline-flex; gap: 16px; align-items: center; }
 .text-button { border: 0; padding: 0; background: transparent; color: var(--teal-dark); font-size: 11px; font-weight: 700; cursor: pointer; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 

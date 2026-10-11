@@ -3,7 +3,7 @@
  * consultant rota. Solihull On Call is intentionally not used. The short QE
  * and HGS tabs remain as fallbacks if a long-form sheet is unavailable.
  */
-window.ROTA_CONFIG = {
+const ROTA_CONFIG = {
   refreshEveryMs: 5 * 60 * 1000,
   dateLookaheadDays: 90,
   dateTimeZone: 'Europe/London',
@@ -32,3 +32,6 @@ window.ROTA_CONFIG = {
     }
   }
 };
+
+if (typeof window !== 'undefined') window.ROTA_CONFIG = ROTA_CONFIG;
+if (typeof module !== 'undefined' && module.exports) module.exports = ROTA_CONFIG;

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1517">
+  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+  <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+  <meta name="bingbot" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="./styles.css">
+  <title>Install the iPhone widget · UHB ENT On Call</title>
+  <style>
+    .guide{width:min(100% - 40px,760px);margin:0 auto;padding:36px 0 54px}
+    .guide .back{display:inline-block;margin-bottom:22px;color:var(--teal-dark);font-size:13px;font-weight:700;text-decoration:none}
+    .guide h1{margin-bottom:10px}.guide-intro{max-width:610px;color:var(--ink-soft)}
+    .sizes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:22px 0}
+    .size{border:1px solid var(--line);border-radius:14px;padding:14px;background:var(--paper)}
+    .size strong{display:block;margin-bottom:4px;color:var(--navy);font-family:var(--serif);font-size:18px}
+    .size span{color:var(--muted);font-size:12px}
+    .steps{margin:24px 0;padding:20px 22px;border:1px solid var(--line);border-radius:16px;background:var(--paper)}
+    .steps h2{font-size:20px;margin-bottom:12px}.steps ol{margin:0;padding-left:22px}.steps li{padding:5px 0;color:var(--ink-soft)}
+    .copy-row{display:flex;gap:10px;align-items:center;margin-top:16px}
+    .copy-button,.open-scriptable{border:0;border-radius:11px;padding:11px 15px;background:var(--nav-bg);color:var(--nav-fg);font-size:13px;font-weight:700;text-decoration:none;cursor:pointer}
+    .copy-state{min-height:1.3em;color:var(--muted);font-size:12px}
+    .parameter{display:inline-block;padding:2px 6px;border-radius:5px;background:var(--tint);font-family:var(--mono);font-size:12px}
+    .manual{margin-top:12px}.manual summary{color:var(--teal-dark);font-size:13px;font-weight:700;cursor:pointer}
+    .manual textarea{display:block;width:100%;min-height:180px;margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--paper);color:var(--ink);font:11px/1.4 var(--mono)}
+    .note{border-left:3px solid var(--teal);padding:9px 12px;background:var(--teal-wash);color:var(--ink-soft);font-size:12px}
+    @media(max-width:560px){.sizes{grid-template-columns:1fr}.size{padding:11px 13px}.guide{padding-top:25px}.copy-row{align-items:stretch;flex-direction:column}.copy-button,.open-scriptable{text-align:center}}
+  </style>
+  <script>(function(){try{var t=localStorage.getItem('oncall:theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}})();</script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar"><a class="brand" href="./"><span class="brand-mark" aria-hidden="true">OC</span><span>On call</span></a></header>
+    <main class="guide">
+      <a class="back" href="./">← Back to the rota</a>
+      <p class="eyebrow">IPHONE HOME SCREEN</p>
+      <h1>Install the rota widget</h1>
+      <p class="guide-intro">The Scriptable widget reads the same live rota feed as this page, so sheet changes flow through from one place. Choose a site on each widget: HGS, QE or both.</p>
+      <div class="sizes" aria-label="Widget sizes">
+        <div class="size"><strong>Small</strong><span>Current on-call cover for today’s rota day.</span></div>
+        <div class="size"><strong>Medium</strong><span>Today and tomorrow.</span></div>
+        <div class="size"><strong>Large</strong><span>Today plus the following six days.</span></div>
+      </div>
+      <section class="steps">
+        <h2>Set it up once</h2>
+        <ol>
+          <li>Install <strong>Scriptable</strong> from the App Store.</li>
+          <li>Tap <strong>Copy widget script</strong> below. Allow clipboard access if iOS asks.</li>
+          <li>Open Scriptable, tap <strong>+</strong>, paste the code into a new script, and name it <strong>UHB ENT On Call</strong>.</li>
+          <li>On the Home Screen, touch and hold an empty area, tap <strong>+</strong>, search for Scriptable, then add a Small, Medium or Large widget.</li>
+          <li>Touch and hold the widget, choose <strong>Edit Widget</strong>, select <strong>UHB ENT On Call</strong>, then enter a site in <strong>Parameter</strong>: <span class="parameter">HGS</span>, <span class="parameter">QE</span> or <span class="parameter">BOTH</span>.</li>
+        </ol>
+        <p class="note">Each widget can have its own size and site setting. With no recognised parameter, it shows HGS. iOS controls refresh timing, so the update label tells you whether the widget has fresh data or is showing a saved copy.</p>
+        <div class="copy-row"><button id="copy-script" class="copy-button" type="button">Copy widget script</button><a class="open-scriptable" href="scriptable:///">Open Scriptable</a></div>
+        <p id="copy-state" class="copy-state" aria-live="polite"></p>
+        <details class="manual"><summary>Show script if clipboard copy is unavailable</summary><textarea id="script-code" readonly aria-label="Scriptable widget code" placeholder="Loading widget script…"></textarea></details>
+      </section>
+    </main>
+  </div>
+<script>
+(() => {
+  const button = document.getElementById('copy-script');
+  const state = document.getElementById('copy-state');
+  const area = document.getElementById('script-code');
+  let code = '';
+  async function getCode() {
+    if (code) return code;
+    const response = await fetch('./widget.js', { cache: 'no-store' });
+    if (!response.ok) throw new Error('Could not load the widget script.');
+    code = (await response.text()).replace("'__ROTA_APP_URL__'", JSON.stringify(new URL('./', location.href).href));
+    area.value = code;
+    return code;
+  }
+  button.addEventListener('click', async () => {
+    button.disabled = true; state.textContent = 'Preparing script…';
+    try {
+      const text = await getCode();
+      await navigator.clipboard.writeText(text);
+      state.textContent = 'Copied. Open Scriptable, add a script, and paste it in.';
+    } catch (error) {
+      try { await getCode(); area.closest('details').open = true; area.focus(); area.select(); state.textContent = 'Select and copy the script below.'; }
+      catch { state.textContent = 'Could not load the script. Refresh this page and try again.'; }
+    } finally { button.disabled = false; }
+  });
+})();
+</script>
+</body>
+</html>
