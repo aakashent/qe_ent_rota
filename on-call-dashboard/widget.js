@@ -1,7 +1,7 @@
 // UHB ENT On Call Scriptable widget. The rota app's JSON feed is the only data source.
 const APP_URL = '__ROTA_APP_URL__';
-const FEED_URL = new URL('./api/rota', APP_URL).toString();
-const APP_HOME = new URL('./', APP_URL).toString();
+const APP_HOME = APP_URL.endsWith('/') ? APP_URL : `${APP_URL}/`;
+const FEED_URL = `${APP_HOME}api/rota`;
 const DEFAULT_SITE = 'HGS';
 const TIME_ZONE = 'Europe/London';
 const CACHE_NAME = 'uhb-ent-on-call-widget-cache.json';
