@@ -1,7 +1,11 @@
+// Variables used by Scriptable.
+// These must be at the very top of the file. Do not edit.
+// icon-color: purple; icon-glyph: magic;
 // UHB ENT On Call Scriptable widget. The rota app's JSON feed is the only data source.
 const APP_URL = '__ROTA_APP_URL__';
 const APP_HOME = APP_URL.endsWith('/') ? APP_URL : `${APP_URL}/`;
-const DEFAULT_SITE = 'HGS';
+const INSTALLED_DEFAULT_SITE = '__DEFAULT_SITE__';
+const DEFAULT_SITE = ['HGS', 'QE', 'BOTH'].includes(INSTALLED_DEFAULT_SITE) ? INSTALLED_DEFAULT_SITE : 'HGS';
 const TIME_ZONE = 'Europe/London';
 const DAY_START = 8 * 60;
 const NIGHT_START = 17 * 60;
@@ -11,24 +15,22 @@ const siteFilter = ['HGS', 'QE', 'BOTH'].includes(String(args.widgetParameter ||
 const sites = siteFilter === 'BOTH' ? ['HGS', 'QE'] : [siteFilter];
 const FEED_URL = `${APP_HOME}api/rota?compact=1&site=${siteFilter}`;
 const CACHE_NAME = `uhb-ent-on-call-${siteFilter.toLowerCase()}.json`;
+const WIDGET_SIZES = {
+  '320x568': [141, 292, 311], '375x667': [148, 321, 324], '375x812': [155, 329, 345], '360x780': [155, 329, 345],
+  '390x844': [158, 338, 354], '393x852': [158, 338, 354], '402x874': [162, 350, 379], '414x736': [159, 348, 357],
+  '414x896': [169, 360, 379], '428x926': [170, 364, 382], '430x932': [170, 364, 382], '440x956': [170, 364, 382]
+};
+const SCREEN = Device.screenSize();
+const SCREEN_MIN = Math.min(SCREEN.width, SCREEN.height);
+const SCREEN_KEY = `${Math.round(SCREEN_MIN)}x${Math.round(Math.max(SCREEN.width, SCREEN.height))}`;
+const [SMALL_WIDTH, WIDE_WIDTH, LARGE_HEIGHT] = WIDGET_SIZES[SCREEN_KEY]
+  || [Math.round(SCREEN_MIN * 0.4), Math.round(SCREEN_MIN * 0.85), Math.round(SCREEN_MIN * 0.89)];
 const OUTER_PADDING = 12;
-
-function widgetFamilyWidth() {
-  const screen = Device.screenSize();
-  const height = Math.round(Math.max(screen.width, screen.height));
-  const widths = {
-    956: [174, 372], 932: [170, 364], 926: [170, 364], 896: [169, 360],
-    874: [162, 344], 852: [158, 338], 844: [158, 338], 812: [155, 329],
-    736: [159, 348], 667: [148, 322], 568: [141, 292]
-  };
-  const known = Object.keys(widths).map(Number).sort((a, b) => Math.abs(a - height) - Math.abs(b - height))[0];
-  if (Math.abs(known - height) <= 24) return family === 'small' ? widths[known][0] : widths[known][1];
-  const shortSide = Math.min(screen.width, screen.height);
-  return family === 'small' ? Math.round(shortSide * 0.4) : Math.min(392, Math.round(shortSide * 0.85));
-}
-
-const WIDGET_WIDTH = widgetFamilyWidth();
-const CONTENT_WIDTH = WIDGET_WIDTH - OUTER_PADDING * 2;
+const CONTENT_WIDTH = WIDE_WIDTH - OUTER_PADDING * 2;
+const SMALL_CONTENT_WIDTH = SMALL_WIDTH - OUTER_PADDING * 2;
+const SMALL_BOTH_HEIGHT = Math.max(68, SMALL_WIDTH - 88);
+const MEDIUM_CARD_HEIGHT = SMALL_WIDTH - 62;
+const LARGE_ROW_HEIGHT = Math.max(30, Math.min(41, Math.floor((LARGE_HEIGHT - 94) / 7)));
 
 function keyFor(date) {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' })
@@ -149,15 +151,20 @@ function currentFor(feed, site, rotaDate, actualMinute) {
 }
 function dateRows(feed, day) { return sites.map((site) => ({ site, row: getRow(feed, site, day) })); }
 const colour = {
-  bg: Color.dynamic(new Color('#F2F4F0'), new Color('#111719')),
-  card: Color.dynamic(new Color('#FFFFFF'), new Color('#1B2326')),
-  cardAlt: Color.dynamic(new Color('#E7EEE8'), new Color('#223029')),
-  ink: Color.dynamic(new Color('#172126'), new Color('#F4F5F1')),
-  soft: Color.dynamic(new Color('#53605B'), new Color('#BCC5C0')),
-  muted: Color.dynamic(new Color('#748079'), new Color('#8E9B95')),
-  accent: Color.dynamic(new Color('#3F6C50'), new Color('#A7CEAE')),
-  qe: Color.dynamic(new Color('#365B70'), new Color('#A9CADB')),
-  line: Color.dynamic(new Color('#D9E0DB'), new Color('#344044'))
+  bgTop: Color.dynamic(new Color('#F9FAF7'), new Color('#182124')),
+  bg: Color.dynamic(new Color('#EAEEE9'), new Color('#0E1416')),
+  card: Color.dynamic(new Color('#FFFFFF'), new Color('#1B2528')),
+  cardAlt: Color.dynamic(new Color('#EEF2EE'), new Color('#202B2D')),
+  todayTint: Color.dynamic(new Color('#E2EFE5'), new Color('#243A2F')),
+  weekend: Color.dynamic(new Color('#F7F0DC'), new Color('#2D2A1D')),
+  gold: Color.dynamic(new Color('#8A6A10'), new Color('#E6C97B')),
+  ink: Color.dynamic(new Color('#10191D'), new Color('#F7F8F4')),
+  soft: Color.dynamic(new Color('#46534E'), new Color('#C9D2CD')),
+  muted: Color.dynamic(new Color('#66736D'), new Color('#9AA7A1')),
+  accent: Color.dynamic(new Color('#2F6B4A'), new Color('#9FD2AE')),
+  qe: Color.dynamic(new Color('#2D5B76'), new Color('#9CCBE3')),
+  onTint: Color.dynamic(new Color('#FFFFFF'), new Color('#0F1C16')),
+  line: Color.dynamic(new Color('#D5DDD7'), new Color('#33403F'))
 };
 
 function addText(stack, value, size, color = colour.ink, options = {}) {
@@ -180,25 +187,48 @@ function siteColour(site) { return site === 'HGS' ? colour.accent : colour.qe; }
 
 function badge(parent, label, tint = colour.accent) {
   const pill = parent.addStack();
-  pill.backgroundColor = colour.cardAlt;
-  pill.cornerRadius = 7;
-  pill.setPadding(3, 7, 3, 7);
-  addText(pill, label, 9, tint, { font: Font.boldSystemFont(9), scale: 1 });
+  pill.backgroundColor = tint;
+  pill.cornerRadius = 8;
+  pill.setPadding(3, 8, 3, 8);
+  addText(pill, label, 9, colour.onTint, { font: Font.heavySystemFont(9), scale: 1 });
   return pill;
 }
 
-function header(widget, label, right) {
+function divider(parent, gap = 0) {
+  if (gap) parent.addSpacer(gap);
+  const rule = parent.addStack();
+  rule.layoutHorizontally();
+  rule.size = new Size(0, 1);
+  rule.backgroundColor = colour.line;
+  rule.addSpacer();
+  if (gap) parent.addSpacer(gap);
+}
+
+function shiftSymbol(clock) {
+  return clock.minute >= NIGHT_START || clock.minute < DAY_START ? 'moon.stars.fill' : 'sun.max.fill';
+}
+
+function header(widget, label, right, symbol) {
   const row = widget.addStack();
   row.centerAlignContent();
   badge(row, label, label === 'QE' ? colour.qe : colour.accent);
   row.addSpacer();
-  addText(row, right, 9, colour.soft, { font: Font.mediumSystemFont(9), scale: 0.8 });
+  if (symbol) {
+    const glyph = SFSymbol.named(symbol);
+    if (glyph) {
+      const icon = row.addImage(glyph.image);
+      icon.imageSize = new Size(10, 10);
+      icon.tintColor = colour.soft;
+      row.addSpacer(4);
+    }
+  }
+  addText(row, right, 9, colour.soft, { font: Font.semiboldSystemFont(9), scale: 0.8 });
 }
 
 function role(parent, label, value, size = 15, lines = 1) {
-  addText(parent, label.toUpperCase(), 8, colour.muted, { font: Font.boldSystemFont(8), scale: 1 });
-  parent.addSpacer(1);
-  addText(parent, value || '—', size, colour.ink, { font: Font.semiboldSystemFont(size), lines, scale: 0.62 });
+  addText(parent, label.toUpperCase(), 8, colour.muted, { font: Font.heavySystemFont(8), scale: 1 });
+  parent.addSpacer(2);
+  addText(parent, value || '—', size, colour.ink, { font: Font.boldSystemFont(size), lines, scale: 0.62 });
 }
 
 function periodLines(parent, periods, size = 10, colourValue = colour.ink) {
@@ -220,7 +250,7 @@ function card(parent, padding = 8) {
   const box = parent.addStack();
   box.layoutVertically();
   box.backgroundColor = colour.card;
-  box.cornerRadius = 11;
+  box.cornerRadius = 14;
   box.borderColor = colour.line;
   box.borderWidth = 0.5;
   box.setPadding(padding, padding, padding, padding);
@@ -239,9 +269,9 @@ function footer(widget, feedState) {
   row.centerAlignContent();
   addText(row, feedState.stale ? '○' : '●', 7, feedState.stale ? colour.muted : colour.accent, { scale: 1 });
   row.addSpacer(4);
-  addText(row, updateLabel(feedState), 8, colour.muted, { scale: 0.8 });
+  addText(row, updateLabel(feedState), 8, colour.muted, { font: Font.mediumSystemFont(8), scale: 0.8 });
   row.addSpacer();
-  addText(row, 'Tap for rota', 8, colour.muted, { scale: 0.8 });
+  addText(row, 'Open rota ›', 8, colour.muted, { font: Font.mediumSystemFont(8), scale: 0.8 });
 }
 
 function setRefreshDate(widget) { widget.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000); }
@@ -266,23 +296,23 @@ async function loadFeed() {
 
 function addSmall(widget, feed, feedState, rotaDate, clock) {
   const shift = clock.minute >= NIGHT_START || clock.minute < DAY_START ? 'Night cover' : 'Day cover';
-  header(widget, siteFilter === 'BOTH' ? 'ON CALL' : siteFilter, `${clock.text} · ${shift}`);
+  header(widget, siteFilter === 'BOTH' ? 'ON CALL' : siteFilter, `${clock.text} · ${shift}`, shiftSymbol(clock));
   widget.addSpacer(7);
-  addText(widget, formatDate(rotaDate, { weekday: 'long', day: 'numeric', month: 'short' }), 11, colour.soft, { font: Font.mediumSystemFont(11) });
+  addText(widget, formatDate(rotaDate, { weekday: 'long', day: 'numeric', month: 'short' }), 12, colour.ink, { font: Font.semiboldSystemFont(12) });
   widget.addSpacer(7);
   if (sites.length === 1) {
     const active = currentFor(feed, sites[0], rotaDate, clock.minute);
-    role(widget, 'Consultant', active.consultant, 16, 2);
-    widget.addSpacer(7);
+    role(widget, 'Consultant', active.consultant, 17, 2);
+    divider(widget, 6);
     role(widget, 'Registrar', active.registrar, 15, 2);
   } else {
     const columns = widget.addStack();
-    const columnWidth = (CONTENT_WIDTH - 5) / 2;
+    const columnWidth = (SMALL_CONTENT_WIDTH - 5) / 2;
     sites.forEach((site, index) => {
       const active = currentFor(feed, site, rotaDate, clock.minute);
       const box = card(columns, 6);
-      box.size = new Size(columnWidth, 82);
-      addText(box, site, 9, siteColour(site), { font: Font.boldSystemFont(9), scale: 1 });
+      box.size = new Size(columnWidth, SMALL_BOTH_HEIGHT);
+      addText(box, site, 9, siteColour(site), { font: Font.heavySystemFont(9), scale: 1 });
       box.addSpacer(4);
       addText(box, 'CONSULTANT', 6, colour.muted, { font: Font.boldSystemFont(6), scale: 1 });
       addText(box, active.consultant, 11, colour.ink, { font: Font.semiboldSystemFont(11), lines: 2, scale: 0.55 });
@@ -297,9 +327,16 @@ function addSmall(widget, feed, feedState, rotaDate, clock) {
 
 function dayColumn(parent, feed, day, offset, clock) {
   const box = card(parent, sites.length > 1 ? 6 : 8);
-  box.size = new Size((CONTENT_WIDTH - 7) / 2, 104);
-  const title = offset === 0 ? 'TODAY' : 'TOMORROW';
-  addText(box, title, 8, offset === 0 ? colour.accent : colour.muted, { font: Font.boldSystemFont(8), scale: 1 });
+  box.size = new Size((CONTENT_WIDTH - 7) / 2, MEDIUM_CARD_HEIGHT);
+  if (offset === 0) {
+    box.backgroundColor = colour.todayTint;
+    box.borderColor = colour.accent;
+    box.borderWidth = 1;
+  } else if (isWeekend(day)) {
+    box.backgroundColor = colour.weekend;
+  }
+  const title = offset === 0 ? '● ON CALL NOW' : 'TOMORROW';
+  addText(box, title, 8, offset === 0 ? colour.accent : (isWeekend(day) ? colour.gold : colour.muted), { font: Font.boldSystemFont(8), scale: 1 });
   addText(box, formatDate(day, { weekday: 'short', day: 'numeric', month: 'short' }), 11, colour.ink, { font: Font.semiboldSystemFont(11) });
   box.addSpacer(sites.length > 1 ? 4 : 7);
   sites.forEach((site, index) => {
@@ -309,7 +346,7 @@ function dayColumn(parent, feed, day, offset, clock) {
     };
     if (sites.length > 1) {
       addText(box, site, 8, siteColour(site), { font: Font.boldSystemFont(8), scale: 1 });
-      addText(box, `C  ${values.consultant}`, 10, colour.ink, { font: Font.semiboldSystemFont(10), scale: 0.55 });
+      addText(box, `C  ${values.consultant}`, 10, colour.ink, { font: Font.boldSystemFont(10), scale: 0.55 });
       if (offset === 0) {
         addText(box, `R  ${values.registrar}`, 9, colour.soft, { scale: 0.55 });
       } else {
@@ -318,7 +355,7 @@ function dayColumn(parent, feed, day, offset, clock) {
         });
       }
     } else {
-      role(box, 'Consultant', values.consultant, 13, offset === 0 ? 1 : 2);
+      role(box, 'Consultant', values.consultant, offset === 0 ? 14 : 13, offset === 0 ? 1 : 2);
       box.addSpacer(4);
       addText(box, 'REGISTRAR', 8, colour.muted, { font: Font.boldSystemFont(8), scale: 1 });
       box.addSpacer(1);
@@ -327,10 +364,11 @@ function dayColumn(parent, feed, day, offset, clock) {
     }
     if (index < sites.length - 1) box.addSpacer(4);
   });
+  box.addSpacer();
 }
 
 function addMedium(widget, feed, feedState, rotaDate, clock) {
-  header(widget, siteFilter === 'BOTH' ? 'UHB ENT' : siteFilter, `${clock.text} · On call`);
+  header(widget, siteFilter === 'BOTH' ? 'UHB ENT' : siteFilter, `${clock.text} · On call`, shiftSymbol(clock));
   widget.addSpacer(8);
   const days = widget.addStack();
   dayColumn(days, feed, rotaDate, 0, clock);
@@ -344,19 +382,26 @@ function dayOfWeek(day) {
   return new Date(Date.UTC(year, month - 1, date, 12)).getUTCDay();
 }
 
+function isWeekend(day) { return dayOfWeek(day) === 0 || dayOfWeek(day) === 6; }
+
 function largeDate(parent, day, offset) {
   const date = vertical(parent);
   date.size = new Size(46, 0);
   addText(date, offset === 0 ? 'TODAY' : formatDate(day, { weekday: 'short' }).toUpperCase(), 7,
-    offset === 0 ? colour.accent : colour.muted, { font: Font.boldSystemFont(7), scale: 1 });
-  addText(date, formatDate(day, { day: 'numeric', month: 'short' }), 9, colour.ink, { font: Font.semiboldSystemFont(9), scale: 1 });
+    offset === 0 ? colour.accent : (isWeekend(day) ? colour.gold : colour.muted), { font: Font.boldSystemFont(7), scale: 1 });
+  addText(date, formatDate(day, { day: 'numeric', month: 'short' }), 10, colour.ink, { font: Font.boldSystemFont(10), scale: 1 });
 }
 
 function singleSiteWeekRow(parent, feed, site, day, offset, clock) {
   const row = card(parent, 5);
   const roleWidth = (CONTENT_WIDTH - 10 - 46 - 5 - 6) / 2;
-  row.size = new Size(CONTENT_WIDTH, 39);
-  if (dayOfWeek(day) === 0 || dayOfWeek(day) === 6) row.backgroundColor = colour.cardAlt;
+  row.size = new Size(CONTENT_WIDTH, LARGE_ROW_HEIGHT);
+  if (isWeekend(day)) row.backgroundColor = colour.weekend;
+  if (offset === 0) {
+    row.backgroundColor = colour.todayTint;
+    row.borderColor = colour.accent;
+    row.borderWidth = 1;
+  }
   row.layoutHorizontally();
   row.centerAlignContent();
   largeDate(row, day, offset);
@@ -366,7 +411,7 @@ function singleSiteWeekRow(parent, feed, site, day, offset, clock) {
   const consultant = vertical(row);
   consultant.size = new Size(roleWidth, 0);
   addText(consultant, active ? active.consultant : consultantSummary(rota?.consultants || []), 10, colour.ink,
-    { font: Font.mediumSystemFont(10), lines: 2, scale: 0.55 });
+    { font: Font.semiboldSystemFont(10), lines: 2, scale: 0.55 });
   row.addSpacer(6);
   const registrar = vertical(row);
   if (active) addText(registrar, active.registrar, 10, colour.ink, { font: Font.mediumSystemFont(10), lines: 2, scale: 0.55 });
@@ -376,8 +421,13 @@ function singleSiteWeekRow(parent, feed, site, day, offset, clock) {
 function bothSitesWeekRow(parent, feed, day, offset, clock) {
   const row = card(parent, 5);
   const roleWidth = (CONTENT_WIDTH - 10 - 46 - 5 - 6) / 2;
-  row.size = new Size(CONTENT_WIDTH, 39);
-  if (dayOfWeek(day) === 0 || dayOfWeek(day) === 6) row.backgroundColor = colour.cardAlt;
+  row.size = new Size(CONTENT_WIDTH, LARGE_ROW_HEIGHT);
+  if (isWeekend(day)) row.backgroundColor = colour.weekend;
+  if (offset === 0) {
+    row.backgroundColor = colour.todayTint;
+    row.borderColor = colour.accent;
+    row.borderWidth = 1;
+  }
   row.layoutHorizontally();
   row.centerAlignContent();
   largeDate(row, day, offset);
@@ -396,7 +446,7 @@ function bothSitesWeekRow(parent, feed, day, offset, clock) {
 }
 
 function addLarge(widget, feed, feedState, rotaDate, clock) {
-  header(widget, siteFilter === 'BOTH' ? 'UHB ENT' : siteFilter, `${clock.text} · 7-day rota`);
+  header(widget, siteFilter === 'BOTH' ? 'UHB ENT' : siteFilter, `${clock.text} · 7-day rota`, shiftSymbol(clock));
   widget.addSpacer(7);
   const headings = widget.addStack();
   const roleWidth = (CONTENT_WIDTH - 10 - 46 - 5 - 6) / 2;
@@ -434,7 +484,11 @@ function addLarge(widget, feed, feedState, rotaDate, clock) {
 function buildWidget(feedState) {
   const widget = new ListWidget();
   widget.backgroundColor = colour.bg;
-  widget.setPadding(12, 12, 10, 12);
+  const gradient = new LinearGradient();
+  gradient.colors = [colour.bgTop, colour.bg];
+  gradient.locations = [0, 1];
+  widget.backgroundGradient = gradient;
+  widget.setPadding(12, OUTER_PADDING, 10, OUTER_PADDING);
   widget.url = APP_HOME;
   setRefreshDate(widget);
   const clock = londonClock();
