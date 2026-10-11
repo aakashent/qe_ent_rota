@@ -28,6 +28,9 @@
     .manual{margin-top:12px}.manual summary{color:var(--teal-dark);font-size:13px;font-weight:700;cursor:pointer}
     .manual textarea{display:block;width:100%;min-height:180px;margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--paper);color:var(--ink);font:11px/1.4 var(--mono)}
     .note{border-left:3px solid var(--teal);padding:9px 12px;background:var(--teal-wash);color:var(--ink-soft);font-size:12px}
+    .default-choice{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center;margin:16px 0;padding:13px 14px;border:1px solid var(--line);border-radius:12px;background:var(--tint)}
+    .default-choice label{color:var(--ink);font-size:13px;font-weight:700}.default-choice select{justify-self:end;min-width:112px;border:1px solid var(--line);border-radius:9px;padding:8px 30px 8px 10px;background:var(--paper);color:var(--ink);font:700 13px var(--sans)}
+    .default-choice span{grid-column:1/-1;color:var(--muted);font-size:11px}
     @media(max-width:560px){.sizes{grid-template-columns:1fr}.size{padding:11px 13px}.guide{padding-top:25px}.copy-row{align-items:stretch;flex-direction:column}.copy-button,.open-scriptable{text-align:center}}
   </style>
   <script>(function(){try{var t=localStorage.getItem('oncall:theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}})();</script>
@@ -52,9 +55,10 @@
           <li>Tap <strong>Copy widget script</strong> below. Allow clipboard access if iOS asks.</li>
           <li>Open Scriptable, tap <strong>+</strong>, paste the code into a new script, and name it <strong>UHB ENT On Call</strong>.</li>
           <li>On the Home Screen, touch and hold an empty area, tap <strong>+</strong>, search for Scriptable, then add a Small, Medium or Large widget.</li>
-          <li>Touch and hold the widget, choose <strong>Edit Widget</strong>, select <strong>UHB ENT On Call</strong>, then enter a site in <strong>Parameter</strong>: <span class="parameter">HGS</span>, <span class="parameter">QE</span> or <span class="parameter">BOTH</span>.</li>
+          <li>Touch and hold the widget, choose <strong>Edit Widget</strong>, and select <strong>UHB ENT On Call</strong>. You can optionally override its default using the Parameter <span class="parameter">HGS</span>, <span class="parameter">QE</span> or <span class="parameter">BOTH</span>.</li>
         </ol>
-        <p class="note">Each widget can have its own size and site setting. With no recognised parameter, it shows HGS. iOS controls refresh timing, so the update label tells you whether the widget has fresh data or is showing a saved copy.</p>
+        <div class="default-choice"><label for="widget-default">Default site in this script</label><select id="widget-default"><option value="HGS">HGS</option><option value="QE">QE</option><option value="BOTH">Both sites</option></select><span>Prefilled from your saved rota setting. Change it here before copying if you want this widget to use a different default.</span></div>
+        <p class="note">Each widget can still have its own site using its Scriptable parameter. With no recognised parameter it uses the default selected above. iOS controls refresh timing, so the update label tells you whether the widget has fresh data or is showing a saved copy.</p>
         <div class="copy-row"><button id="copy-script" class="copy-button" type="button">Copy widget script</button><a class="open-scriptable" href="scriptable:///">Open Scriptable</a></div>
         <p id="copy-state" class="copy-state" aria-live="polite"></p>
         <details class="manual"><summary>Show script if clipboard copy is unavailable</summary><textarea id="script-code" readonly aria-label="Scriptable widget code" placeholder="Loading widget script…"></textarea></details>
@@ -66,21 +70,30 @@
   const button = document.getElementById('copy-script');
   const state = document.getElementById('copy-state');
   const area = document.getElementById('script-code');
-  let code = '';
+  const defaultSite = document.getElementById('widget-default');
+  let source = '';
+  try {
+    const saved = JSON.parse(localStorage.getItem('oncall:display-settings') || 'null');
+    const preferred = ['HGS', 'QE', 'BOTH'].includes(saved?.lookaheadFilter) ? saved.lookaheadFilter : saved?.first;
+    if (['HGS', 'QE', 'BOTH'].includes(preferred)) defaultSite.value = preferred;
+  } catch {}
   async function getCode() {
-    if (code) return code;
-    const response = await fetch('./widget.js', { cache: 'no-store' });
-    if (!response.ok) throw new Error('Could not load the widget script.');
-    code = (await response.text()).replace("'__ROTA_APP_URL__'", JSON.stringify(new URL('./', location.href).href));
+    if (!source) {
+      const response = await fetch('./widget.js', { cache: 'no-store' });
+      if (!response.ok) throw new Error('Could not load the widget script.');
+      source = (await response.text()).replace("'__ROTA_APP_URL__'", JSON.stringify(new URL('./', location.href).href));
+    }
+    const code = source.replace("'__DEFAULT_SITE__'", JSON.stringify(defaultSite.value));
     area.value = code;
     return code;
   }
+  defaultSite.addEventListener('change', () => { if (source) getCode(); });
   button.addEventListener('click', async () => {
     button.disabled = true; state.textContent = 'Preparing script…';
     try {
       const text = await getCode();
       await navigator.clipboard.writeText(text);
-      state.textContent = 'Copied. Open Scriptable, add a script, and paste it in.';
+      state.textContent = `Copied with ${defaultSite.options[defaultSite.selectedIndex].text} as its default.`;
     } catch (error) {
       try { await getCode(); area.closest('details').open = true; area.focus(); area.select(); state.textContent = 'Select and copy the script below.'; }
       catch { state.textContent = 'Could not load the script. Refresh this page and try again.'; }
