@@ -1,16 +1,16 @@
 // UHB ENT On Call Scriptable widget. The rota app's JSON feed is the only data source.
 const APP_URL = '__ROTA_APP_URL__';
 const APP_HOME = APP_URL.endsWith('/') ? APP_URL : `${APP_URL}/`;
-const FEED_URL = `${APP_HOME}api/rota`;
 const DEFAULT_SITE = 'HGS';
 const TIME_ZONE = 'Europe/London';
-const CACHE_NAME = 'uhb-ent-on-call-widget-cache.json';
 const DAY_START = 8 * 60;
 const NIGHT_START = 17 * 60;
 const family = config.widgetFamily || 'medium';
 const siteFilter = ['HGS', 'QE', 'BOTH'].includes(String(args.widgetParameter || '').trim().toUpperCase())
   ? String(args.widgetParameter).trim().toUpperCase() : DEFAULT_SITE;
 const sites = siteFilter === 'BOTH' ? ['HGS', 'QE'] : [siteFilter];
+const FEED_URL = `${APP_HOME}api/rota?compact=1&site=${siteFilter}`;
+const CACHE_NAME = `uhb-ent-on-call-${siteFilter.toLowerCase()}.json`;
 
 function keyFor(date) {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' })
@@ -118,33 +118,86 @@ function currentFor(feed, site, rotaDate, actualMinute) {
   };
 }
 function dateRows(feed, day) { return sites.map((site) => ({ site, row: getRow(feed, site, day) })); }
-function addText(stack, value, size, color, options = {}) {
+const colour = {
+  bg: Color.dynamic(new Color('#F2F4F0'), new Color('#111719')),
+  card: Color.dynamic(new Color('#FFFFFF'), new Color('#1B2326')),
+  cardAlt: Color.dynamic(new Color('#E7EEE8'), new Color('#223029')),
+  ink: Color.dynamic(new Color('#172126'), new Color('#F4F5F1')),
+  soft: Color.dynamic(new Color('#53605B'), new Color('#BCC5C0')),
+  muted: Color.dynamic(new Color('#748079'), new Color('#8E9B95')),
+  accent: Color.dynamic(new Color('#3F6C50'), new Color('#A7CEAE')),
+  qe: Color.dynamic(new Color('#365B70'), new Color('#A9CADB')),
+  line: Color.dynamic(new Color('#D9E0DB'), new Color('#344044'))
+};
+
+function addText(stack, value, size, color = colour.ink, options = {}) {
   const item = stack.addText(text(value));
   item.font = options.font || Font.systemFont(size);
   item.textColor = color;
-  item.lineLimit = options.lines || 1;
-  item.minimumScaleFactor = options.scale || 0.68;
+  item.lineLimit = options.lines == null ? 1 : options.lines;
+  item.minimumScaleFactor = options.scale || 0.72;
   if (options.opacity != null) item.textOpacity = options.opacity;
   return item;
 }
-function addSiteRow(widget, site, row, size = 9) {
-  const line = widget.addStack();
-  line.centerAlignContent();
-  const siteLabel = addText(line, site, size, site === 'HGS' ? Color.dynamic(new Color('#496d52'), new Color('#a8c9ae')) : Color.dynamic(new Color('#425b6c'), new Color('#b3c7d4')), { font: Font.boldSystemFont(size), scale: 1 });
-  line.addSpacer(4);
-  const consultant = addText(line, consultantSummary(row?.consultants || []), size, Color.dynamic(Color.black(), Color.white()));
-  line.addSpacer(5);
-  const registrar = addText(line, registrarSummary(row?.registrars || []), size, Color.dynamic(new Color('#56625d'), new Color('#c4cfca')));
-  line.addSpacer(0);
+
+function vertical(parent) {
+  const stack = parent.addStack();
+  stack.layoutVertically();
+  return stack;
 }
+
+function siteColour(site) { return site === 'HGS' ? colour.accent : colour.qe; }
+
+function badge(parent, label, tint = colour.accent) {
+  const pill = parent.addStack();
+  pill.backgroundColor = colour.cardAlt;
+  pill.cornerRadius = 7;
+  pill.setPadding(3, 7, 3, 7);
+  addText(pill, label, 9, tint, { font: Font.boldSystemFont(9), scale: 1 });
+  return pill;
+}
+
+function header(widget, label, right) {
+  const row = widget.addStack();
+  row.centerAlignContent();
+  badge(row, label, label === 'QE' ? colour.qe : colour.accent);
+  row.addSpacer();
+  addText(row, right, 9, colour.soft, { font: Font.mediumSystemFont(9), scale: 0.8 });
+}
+
+function role(parent, label, value, size = 15, lines = 1) {
+  addText(parent, label.toUpperCase(), 8, colour.muted, { font: Font.boldSystemFont(8), scale: 1 });
+  parent.addSpacer(1);
+  addText(parent, value || '—', size, colour.ink, { font: Font.semiboldSystemFont(size), lines, scale: 0.62 });
+}
+
+function card(parent, padding = 8) {
+  const box = parent.addStack();
+  box.layoutVertically();
+  box.backgroundColor = colour.card;
+  box.cornerRadius = 11;
+  box.setPadding(padding, padding, padding, padding);
+  return box;
+}
+
+function updateLabel(feedState) {
+  if (!feedState.checkedAt) return 'No saved update';
+  const time = new Date(feedState.checkedAt).toLocaleTimeString('en-GB', { timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit' });
+  return feedState.stale ? `Saved ${time} · offline` : `Updated ${time}`;
+}
+
+function footer(widget, feedState) {
+  widget.addSpacer();
+  const row = widget.addStack();
+  row.centerAlignContent();
+  addText(row, feedState.stale ? '○' : '●', 7, feedState.stale ? colour.muted : colour.accent, { scale: 1 });
+  row.addSpacer(4);
+  addText(row, updateLabel(feedState), 8, colour.muted, { scale: 0.8 });
+  row.addSpacer();
+  addText(row, 'Tap for rota', 8, colour.muted, { scale: 0.8 });
+}
+
 function setRefreshDate(widget) { widget.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000); }
-function addUpdateFooter(widget, label, stale = false) {
-  widget.addSpacer(3);
-  const footer = widget.addStack(); footer.centerAlignContent();
-  addText(footer, stale ? '◌' : '●', 7, stale ? Color.gray() : Color.dynamic(new Color('#4f8460'), new Color('#a7cfad')), { scale: 1 });
-  footer.addSpacer(4);
-  addText(footer, label, 8, Color.dynamic(new Color('#6d7772'), new Color('#aeb7b2')), { scale: 1 });
-}
 
 async function loadFeed() {
   const fm = FileManager.local();
@@ -152,8 +205,8 @@ async function loadFeed() {
   let saved = null;
   try { if (fm.fileExists(cachePath)) saved = JSON.parse(fm.readString(cachePath)); } catch {}
   try {
-    const request = new Request(`${FEED_URL}?_=${Date.now()}`);
-    request.timeoutInterval = 20;
+    const request = new Request(FEED_URL);
+    request.timeoutInterval = 12;
     const feed = await request.loadJSON();
     if (!feed?.sites) throw new Error(feed?.error || 'The rota feed is unavailable.');
     fm.writeString(cachePath, JSON.stringify({ feed, savedAt: Date.now() }));
@@ -164,52 +217,137 @@ async function loadFeed() {
   }
 }
 
+function addSmall(widget, feed, feedState, rotaDate, clock) {
+  const shift = clock.minute >= NIGHT_START || clock.minute < DAY_START ? 'Night cover' : 'Day cover';
+  header(widget, siteFilter === 'BOTH' ? 'ON CALL' : siteFilter, `${clock.text} · ${shift}`);
+  widget.addSpacer(7);
+  addText(widget, formatDate(rotaDate, { weekday: 'long', day: 'numeric', month: 'short' }), 11, colour.soft, { font: Font.mediumSystemFont(11) });
+  widget.addSpacer(7);
+  if (sites.length === 1) {
+    const active = currentFor(feed, sites[0], rotaDate, clock.minute);
+    role(widget, 'Consultant', active.consultant, 16, 2);
+    widget.addSpacer(7);
+    role(widget, 'Registrar', active.registrar, 15, 2);
+  } else {
+    sites.forEach((site, index) => {
+      const active = currentFor(feed, site, rotaDate, clock.minute);
+      const box = card(widget, 6);
+      addText(box, site, 9, siteColour(site), { font: Font.boldSystemFont(9), scale: 1 });
+      addText(box, active.consultant, 12, colour.ink, { font: Font.semiboldSystemFont(12), scale: 0.58 });
+      addText(box, active.registrar, 10, colour.soft, { scale: 0.58 });
+      if (index < sites.length - 1) widget.addSpacer(4);
+    });
+  }
+  footer(widget, feedState);
+}
+
+function dayColumn(parent, feed, day, offset, clock) {
+  const box = card(parent, 8);
+  const title = offset === 0 ? 'TODAY' : 'TOMORROW';
+  addText(box, title, 8, offset === 0 ? colour.accent : colour.muted, { font: Font.boldSystemFont(8), scale: 1 });
+  addText(box, formatDate(day, { weekday: 'short', day: 'numeric', month: 'short' }), 11, colour.ink, { font: Font.semiboldSystemFont(11) });
+  box.addSpacer(7);
+  sites.forEach((site, index) => {
+    const row = getRow(feed, site, day);
+    const values = offset === 0 ? currentFor(feed, site, day, clock.minute) : {
+      consultant: consultantSummary(row?.consultants || []), registrar: registrarSummary(row?.registrars || [])
+    };
+    if (sites.length > 1) addText(box, site, 8, siteColour(site), { font: Font.boldSystemFont(8), scale: 1 });
+    role(box, 'Consultant', values.consultant, sites.length > 1 ? 10 : 13, 1);
+    box.addSpacer(4);
+    role(box, 'Registrar', values.registrar, sites.length > 1 ? 10 : 12, 1);
+    if (index < sites.length - 1) box.addSpacer(6);
+  });
+}
+
+function addMedium(widget, feed, feedState, rotaDate, clock) {
+  header(widget, siteFilter === 'BOTH' ? 'UHB ENT' : siteFilter, `${clock.text} · On call`);
+  widget.addSpacer(8);
+  const days = widget.addStack();
+  dayColumn(days, feed, rotaDate, 0, clock);
+  days.addSpacer(7);
+  dayColumn(days, feed, addDays(rotaDate, 1), 1, clock);
+  footer(widget, feedState);
+}
+
+function currentCard(parent, feed, site, rotaDate, clock) {
+  const values = currentFor(feed, site, rotaDate, clock.minute);
+  const box = card(parent, 9);
+  const head = box.addStack();
+  addText(head, site, 10, siteColour(site), { font: Font.boldSystemFont(10), scale: 1 });
+  head.addSpacer();
+  addText(head, clock.minute >= NIGHT_START || clock.minute < DAY_START ? 'NIGHT COVER' : 'DAY COVER', 8, colour.muted, { font: Font.boldSystemFont(8), scale: 1 });
+  box.addSpacer(6);
+  const roles = box.addStack();
+  const consultant = vertical(roles);
+  role(consultant, 'Consultant', values.consultant, 15, 1);
+  roles.addSpacer(12);
+  const registrar = vertical(roles);
+  role(registrar, 'Registrar', values.registrar, 15, 1);
+}
+
+function futureRow(parent, feed, day) {
+  const row = parent.addStack();
+  row.centerAlignContent();
+  const date = vertical(row);
+  date.size = new Size(57, 0);
+  addText(date, formatDate(day, { weekday: 'short' }).toUpperCase(), 8, colour.muted, { font: Font.boldSystemFont(8), scale: 1 });
+  addText(date, formatDate(day, { day: 'numeric', month: 'short' }), 10, colour.ink, { font: Font.semiboldSystemFont(10), scale: 1 });
+  row.addSpacer(5);
+  const detail = vertical(row);
+  dateRows(feed, day).forEach(({ site, row: rota }, index) => {
+    const line = detail.addStack();
+    if (sites.length > 1) {
+      const siteBox = line.addStack();
+      siteBox.size = new Size(26, 0);
+      addText(siteBox, site, 8, siteColour(site), { font: Font.boldSystemFont(8), scale: 1 });
+      line.addSpacer(3);
+    }
+    addText(line, consultantSummary(rota?.consultants || []), 9, colour.ink, { font: Font.mediumSystemFont(9), scale: 0.55 });
+    line.addSpacer(7);
+    addText(line, registrarSummary(rota?.registrars || []), 9, colour.soft, { scale: 0.55 });
+    if (index < sites.length - 1) detail.addSpacer(2);
+  });
+}
+
+function addLarge(widget, feed, feedState, rotaDate, clock) {
+  header(widget, siteFilter === 'BOTH' ? 'UHB ENT · ON CALL' : `${siteFilter} · ON CALL`, `${clock.text} · ${formatDate(rotaDate, { weekday: 'short', day: 'numeric', month: 'short' })}`);
+  widget.addSpacer(8);
+  sites.forEach((site, index) => {
+    currentCard(widget, feed, site, rotaDate, clock);
+    if (index < sites.length - 1) widget.addSpacer(5);
+  });
+  widget.addSpacer(10);
+  addText(widget, 'NEXT 6 ROTA DAYS', 8, colour.muted, { font: Font.boldSystemFont(8), scale: 1 });
+  widget.addSpacer(5);
+  for (let offset = 1; offset <= 6; offset += 1) {
+    futureRow(widget, feed, addDays(rotaDate, offset));
+    if (offset < 6) widget.addSpacer(5);
+  }
+  footer(widget, feedState);
+}
+
 function buildWidget(feedState) {
   const widget = new ListWidget();
-  widget.backgroundColor = Color.dynamic(new Color('#f6f7f4'), new Color('#141a1d'));
-  widget.setPadding(11, 12, 9, 12);
+  widget.backgroundColor = colour.bg;
+  widget.setPadding(12, 12, 10, 12);
   widget.url = APP_HOME;
   setRefreshDate(widget);
-  const feed = feedState.feed;
   const clock = londonClock();
   const today = keyFor(new Date());
   const rotaDate = clock.minute < DAY_START ? addDays(today, -1) : today;
-  const title = addText(widget, family === 'small' ? 'ON CALL NOW' : 'UHB ENT · ON CALL', 9, Color.dynamic(new Color('#68736e'), new Color('#b4beb8')), { font: Font.boldSystemFont(9), scale: 1 });
-  widget.addSpacer(3);
-  if (!feed) {
-    addText(widget, 'Rota unavailable', 14, Color.dynamic(Color.black(), Color.white()), { font: Font.semiboldSystemFont(14) });
-    addText(widget, 'Open the app to retry', 9, Color.gray());
-    addUpdateFooter(widget, 'No saved copy', true);
+  if (!feedState.feed) {
+    header(widget, 'UHB ENT', clock.text);
+    widget.addSpacer(12);
+    addText(widget, 'Rota unavailable', 17, colour.ink, { font: Font.semiboldSystemFont(17) });
+    widget.addSpacer(4);
+    addText(widget, 'Open Scriptable to retry. A saved copy will be used after the first successful update.', 11, colour.soft, { lines: 3 });
+    footer(widget, feedState);
     return widget;
   }
-  if (family === 'small') {
-    addText(widget, `${formatDate(rotaDate, { weekday: 'long', day: 'numeric', month: 'short' })} · ${clock.text}`, 10, Color.dynamic(new Color('#35423b'), new Color('#e4e9e5')), { font: Font.semiboldSystemFont(10) });
-    widget.addSpacer(5);
-    sites.forEach((site, index) => {
-      const active = currentFor(feed, site, rotaDate, clock.minute);
-      addText(widget, site, 9, site === 'HGS' ? Color.dynamic(new Color('#496d52'), new Color('#a8c9ae')) : Color.dynamic(new Color('#425b6c'), new Color('#b3c7d4')), { font: Font.boldSystemFont(9), scale: 1 });
-      addText(widget, `C  ${active.consultant}`, 10, Color.dynamic(Color.black(), Color.white()));
-      addText(widget, `R  ${active.registrar}`, 9, Color.dynamic(new Color('#56625d'), new Color('#c4cfca')));
-      if (index < sites.length - 1) { widget.addSpacer(4); }
-    });
-    const stamp = feedState.stale ? `Saved · ${feedState.checkedAt ? new Date(feedState.checkedAt).toLocaleTimeString('en-GB', { timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit' }) : 'offline'}` : `Updated ${new Date(feedState.checkedAt).toLocaleTimeString('en-GB', { timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit' })}`;
-    addUpdateFooter(widget, stamp, feedState.stale);
-    return widget;
-  }
-
-  const days = family === 'large' ? 7 : 2;
-  for (let offset = 0; offset < days; offset += 1) {
-    const day = addDays(rotaDate, offset);
-    const section = widget.addStack(); section.centerAlignContent();
-    const dateLabel = offset === 0 ? `Today · ${formatDate(day)}` : offset === 1 ? `Tomorrow · ${formatDate(day)}` : formatDate(day);
-    addText(section, dateLabel, family === 'large' ? 9 : 10, offset === 0 ? Color.dynamic(new Color('#304b37'), new Color('#b5d6bb')) : Color.dynamic(new Color('#65706a'), new Color('#b2bbb6')), { font: Font.boldSystemFont(family === 'large' ? 9 : 10), scale: 1 });
-    if (offset === 0 && family !== 'large') { section.addSpacer(); addText(section, `to 08:00 ${formatDate(addDays(day, 1), { day: 'numeric', month: 'short' })}`, 8, Color.gray(), { scale: 1 }); }
-    widget.addSpacer(family === 'large' ? 1 : 2);
-    dateRows(feed, day).forEach(({ site, row }) => addSiteRow(widget, site, row, family === 'large' ? 8 : 9));
-    if (offset < days - 1) widget.addSpacer(family === 'large' ? 3 : 5);
-  }
-  const updatedAt = feedState.checkedAt ? new Date(feedState.checkedAt).toLocaleTimeString('en-GB', { timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit' }) : 'unknown';
-  addUpdateFooter(widget, feedState.stale ? `Saved · ${updatedAt}` : `Updated ${updatedAt}`, feedState.stale);
+  if (family === 'small') addSmall(widget, feedState.feed, feedState, rotaDate, clock);
+  else if (family === 'large') addLarge(widget, feedState.feed, feedState, rotaDate, clock);
+  else addMedium(widget, feedState.feed, feedState, rotaDate, clock);
   return widget;
 }
 
