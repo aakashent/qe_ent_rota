@@ -414,6 +414,7 @@ function singleSiteWeekRow(parent, feed, site, day, offset, clock) {
     { font: Font.semiboldSystemFont(10), lines: 2, scale: 0.55 });
   row.addSpacer(6);
   const registrar = vertical(row);
+  registrar.size = new Size(roleWidth, 0);
   if (active) addText(registrar, active.registrar, 10, colour.ink, { font: Font.mediumSystemFont(10), lines: 2, scale: 0.55 });
   else periodLines(registrar, registrarPeriods(rota?.registrars || []), 9, colour.soft);
 }
