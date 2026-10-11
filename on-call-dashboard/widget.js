@@ -242,21 +242,26 @@ function addSmall(widget, feed, feedState, rotaDate, clock) {
 }
 
 function dayColumn(parent, feed, day, offset, clock) {
-  const box = card(parent, 8);
+  const box = card(parent, sites.length > 1 ? 6 : 8);
   const title = offset === 0 ? 'TODAY' : 'TOMORROW';
   addText(box, title, 8, offset === 0 ? colour.accent : colour.muted, { font: Font.boldSystemFont(8), scale: 1 });
   addText(box, formatDate(day, { weekday: 'short', day: 'numeric', month: 'short' }), 11, colour.ink, { font: Font.semiboldSystemFont(11) });
-  box.addSpacer(7);
+  box.addSpacer(sites.length > 1 ? 4 : 7);
   sites.forEach((site, index) => {
     const row = getRow(feed, site, day);
     const values = offset === 0 ? currentFor(feed, site, day, clock.minute) : {
       consultant: consultantSummary(row?.consultants || []), registrar: registrarSummary(row?.registrars || [])
     };
-    if (sites.length > 1) addText(box, site, 8, siteColour(site), { font: Font.boldSystemFont(8), scale: 1 });
-    role(box, 'Consultant', values.consultant, sites.length > 1 ? 10 : 13, 1);
-    box.addSpacer(4);
-    role(box, 'Registrar', values.registrar, sites.length > 1 ? 10 : 12, 1);
-    if (index < sites.length - 1) box.addSpacer(6);
+    if (sites.length > 1) {
+      addText(box, site, 8, siteColour(site), { font: Font.boldSystemFont(8), scale: 1 });
+      addText(box, `C  ${values.consultant}`, 10, colour.ink, { font: Font.semiboldSystemFont(10), scale: 0.55 });
+      addText(box, `R  ${values.registrar}`, 9, colour.soft, { scale: 0.55 });
+    } else {
+      role(box, 'Consultant', values.consultant, 13, 1);
+      box.addSpacer(4);
+      role(box, 'Registrar', values.registrar, 12, 1);
+    }
+    if (index < sites.length - 1) box.addSpacer(4);
   });
 }
 
